@@ -63,6 +63,13 @@ def test_chain_ok():
     check_chain(_chain())
 
 
+def test_chain_last_segment_mode_is_unconstrained():
+    # the terminal CSV row (mode W) is written by the writer; a schedule may end with a T/D
+    c = _chain()[:2]
+    assert c[-1].mode is Mode.D
+    check_chain(c)
+
+
 def test_chain_rejects_each_violation():
     with pytest.raises(SegmentError):
         check_chain([])
@@ -81,10 +88,6 @@ def test_chain_rejects_each_violation():
     c = _chain()
     c[1] = seg(mode="D", t0=4.0, t1=14.0, p0=(-41, 0, 2), p1=(40, 0, 2))
     with pytest.raises(SegmentError, match="jump"):
-        check_chain(c)
-    c = _chain()
-    c[2] = seg(mode="T", t0=14.0, t1=18.0, p0=(40, 0, 2), p1=(40, 0, 2))
-    with pytest.raises(SegmentError, match="last segment must be W"):
         check_chain(c)
     c = _chain()
     c[1] = seg(rid=2, mode="D", t0=4.0, t1=14.0, p0=(-40, 0, 2), p1=(40, 0, 2))

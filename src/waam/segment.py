@@ -86,7 +86,9 @@ def check_chain(segments: list[Segment]) -> None:
     - non-empty, a single robot_id
     - first segment starts at exactly t = 0.0
     - consecutive segments touch exactly in time and position (no gaps: fill with W)
-    - the last segment is a W (the CSV's final row has mode W)
+
+    The last segment's mode is unconstrained: the CSV's terminal row (mode W) is added by the
+    writer and is not an interval of its own (the Validator only uses ``mode[:-1]``).
 
     Exact float equality is intended: ``timing.py`` must build chains from the previous
     segment's end values rather than recomputing them.
@@ -111,5 +113,3 @@ def check_chain(segments: list[Segment]) -> None:
             raise SegmentError(
                 f"robot {rid}: position jump between segment {i - 1} and {i}: "
                 f"{prev.end_xyz_mm} -> {seg.start_xyz_mm}")
-    if segments[-1].mode is not Mode.W:
-        raise SegmentError(f"robot {rid}: last segment must be W, got {segments[-1].mode.value}")
