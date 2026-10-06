@@ -282,6 +282,150 @@ def min_arm_margin_over_interval(
     return IntervalResult(bool(hit), arm_lb, tcp_lb, float(t0 + (t1 - t0) * u[worst, 0]))
 
 
+# Upper bound on samples materialised at once by the batch interval functions.
+_CHUNK_SAMPLES = 1 << 19
+
+
+def _interval_arrays(*pts: Any) -> list[np.ndarray]:
+    arrs, _ = _prep(*pts)
+    return arrs
+
+
+def interval_margins_batch(
+    g: CellGeometry,
+    ra: int,
+    p0a: Any,
+    p1a: Any,
+    rb: int,
+    p0b: Any,
+    p1b: Any,
+    *,
+    max_step_mm: float = INTERVAL_MAX_STEP_MM,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Vectorised ``min_arm_margin_over_interval`` bounds for K intervals.
+
+    Endpoints are ``(2,)`` or ``(K,2)`` and broadcast against each other. Returns
+    ``(arm_lb, tcp_lb)``, both ``(K,)``: lower bounds of the continuous minimum
+    margins, identical in construction to the scalar function (same ``n`` per
+    interval, same ``(La+Lb)/(2n)`` slack).
+    """
+    P0a, P1a, P0b, P1b = _interval_arrays(p0a, p1a, p0b, p1b)
+    K = len(P0a)
+    arm_lb = np.empty(K)
+    tcp_lb = np.empty(K)
+    if K == 0:
+        return arm_lb, tcp_lb
+    la = np.hypot(*(P1a - P0a).T)
+    lb = np.hypot(*(P1b - P0b).T)
+    n = np.maximum(1, np.ceil(np.maximum(la, lb) / max_step_mm)).astype(np.int64)
+    cnt = n + 1
+    cum = np.cumsum(cnt)
+    start = 0
+    while start < K:
+        before = cum[start - 1] if start else 0
+        end = max(int(np.searchsorted(cum, before + _CHUNK_SAMPLES, side="right")), start + 1)
+        end = min(end, K)
+        c = cnt[start:end]
+        local = np.cumsum(c) - c
+        idx = np.repeat(np.arange(start, end), c)
+        k = np.arange(int(c.sum())) - np.repeat(local, c)
+        u = (k / n[idx])[:, None]
+        ta = P0a[idx] + u * (P1a[idx] - P0a[idx])
+        tb = P0b[idx] + u * (P1b[idx] - P0b[idx])
+        slack = (la[start:end] + lb[start:end]) / (2.0 * n[start:end])
+        arm_lb[start:end] = np.minimum.reduceat(_arm_margin_n(g, ra, ta, rb, tb), local) - slack
+        tcp_lb[start:end] = np.minimum.reduceat(_tcp_margin_n(g, ra, ta, rb, tb), local) - slack
+        start = end
+    return arm_lb, tcp_lb
+
+
+def _hull_aabb(base: np.ndarray, p0: np.ndarray, p1: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    return np.minimum(np.minimum(base, p0), p1), np.maximum(np.maximum(base, p0), p1)
+
+
+def interval_aabb_gap(
+    g: CellGeometry, ra: int, p0a: Any, p1a: Any, rb: int, p0b: Any, p1b: Any
+) -> np.ndarray:
+    """Euclidean gap between the AABBs of ``hull{base, p0, p1}`` of both robots, ``(K,)``.
+
+    For a TCP moving linearly p0 -> p1, the Base-TCP segment and the TCP itself both stay in
+    the hull of {base, p0, p1}, so the gap is a lower bound on the centerline distance AND on
+    the TCP-TCP distance over the whole interval (0 if the boxes overlap).
+    """
+    P0a, P1a, P0b, P1b = _interval_arrays(p0a, p1a, p0b, p1b)
+    lo_a, hi_a = _hull_aabb(g.base_xy[ra - 1], P0a, P1a)
+    lo_b, hi_b = _hull_aabb(g.base_xy[rb - 1], P0b, P1b)
+    d = np.maximum(0.0, np.maximum(lo_b - hi_a, lo_a - hi_b))
+    return np.hypot(d[:, 0], d[:, 1])
+
+
+def interval_clear_mask(
+    g: CellGeometry,
+    ra: int,
+    p0a: Any,
+    p1a: Any,
+    rb: int,
+    p0b: Any,
+    p1b: Any,
+    *,
+    buffer_mm: float = 0.0,
+) -> np.ndarray:
+    """``(K,)`` bool: AABB gap proves the interval is clear (no sampling needed).
+
+    Uses the same hit rules as the exact check, applied to the gap bound minus ``buffer_mm``.
+    A True entry is sound; False only means "not proven by the boxes".
+    """
+    gap = interval_aabb_gap(g, ra, p0a, p1a, rb, p0b, p1b)
+    clear = np.ones(len(gap), dtype=bool)
+    if g.check_arm_envelope:
+        clear &= ~_arm_hit(g, gap - _arm_required(g, ra, rb) - buffer_mm)
+    if g.check_tcp_radius:
+        clear &= ~_tcp_hit(g, gap - _tcp_required(g, ra, rb) - buffer_mm)
+    return clear
+
+
+def intervals_collide(
+    g: CellGeometry,
+    ra: int,
+    p0a: Any,
+    p1a: Any,
+    rb: int,
+    p0b: Any,
+    p1b: Any,
+    *,
+    buffer_mm: float = 0.0,
+    max_step_mm: float = INTERVAL_MAX_STEP_MM,
+    prefilter: bool = True,
+) -> np.ndarray:
+    """``(K,)`` bool: interval may collide (conservative), Validator rules on the bounds.
+
+    ``buffer_mm`` is subtracted from the margin lower bounds before applying the
+    Validator's hit rules (use it for float32 rounding slack). With ``prefilter`` the AABB
+    gap clears far-apart intervals first; only the rest are sampled. Always returns an array
+    (``K`` = 1 for single-interval input).
+    """
+    P0a, P1a, P0b, P1b = _interval_arrays(p0a, p1a, p0b, p1b)
+    K = len(P0a)
+    hit = np.zeros(K, dtype=bool)
+    todo = (
+        ~interval_clear_mask(g, ra, P0a, P1a, rb, P0b, P1b, buffer_mm=buffer_mm)
+        if prefilter
+        else np.ones(K, dtype=bool)
+    )
+    sel = np.flatnonzero(todo)
+    if sel.size:
+        arm, tcp = interval_margins_batch(
+            g, ra, P0a[sel], P1a[sel], rb, P0b[sel], P1b[sel], max_step_mm=max_step_mm
+        )
+        h = np.zeros(sel.size, dtype=bool)
+        if g.check_arm_envelope:
+            h |= _arm_hit(g, arm - buffer_mm)
+        if g.check_tcp_radius:
+            h |= _tcp_hit(g, tcp - buffer_mm)
+        hit[sel] = h
+    return hit
+
+
 # ---------------------------------------------------------------- workspace
 
 
