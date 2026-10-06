@@ -8,7 +8,8 @@ notably xyz ``(3,)`` / ``(N,3)`` -- raises ``ValueError``; slice ``[..., :2]``
 at the call site. Arguments are broadcast against each other ((1,2) or (2,)
 against (N,2)); mismatched batch lengths raise. The result is a scalar only if
 *every* point argument was ``(2,)``, otherwise an ``(N,)`` array (``N`` may be
-0, which gives an empty array).
+0, which gives an empty array). Exception: the interval batch functions
+(``interval_*``, ``intervals_collide``) always return ``(K,)`` arrays, also for K = 1.
 
 Source of the formulas (read-only reference): WAAM_Validator
 ``collision/geometry2d.py``, ``trajectory/reach.py``, ``trajectory/validator.py``.
@@ -282,8 +283,14 @@ def min_arm_margin_over_interval(
     return IntervalResult(bool(hit), arm_lb, tcp_lb, float(t0 + (t1 - t0) * u[worst, 0]))
 
 
-# Upper bound on samples materialised at once by the batch interval functions.
-_CHUNK_SAMPLES = 1 << 19
+# Samples materialised at once by the batch interval functions (peak memory ~300-350 B per
+# sample). A single interval larger than this is processed alone (the cap is then exceeded).
+_CHUNK_SAMPLES = 1 << 16
+
+
+def _check_buffer(buffer_mm: float) -> None:
+    if not buffer_mm >= 0.0:  # also rejects NaN; a negative buffer would break soundness
+        raise ValueError(f"buffer_mm must be >= 0, got {buffer_mm}")
 
 
 def _interval_arrays(*pts: Any) -> list[np.ndarray]:
@@ -375,6 +382,7 @@ def interval_clear_mask(
     Uses the same hit rules as the exact check, applied to the gap bound minus ``buffer_mm``.
     A True entry is sound; False only means "not proven by the boxes".
     """
+    _check_buffer(buffer_mm)
     gap = interval_aabb_gap(g, ra, p0a, p1a, rb, p0b, p1b)
     clear = np.ones(len(gap), dtype=bool)
     if g.check_arm_envelope:
@@ -404,6 +412,7 @@ def intervals_collide(
     gap clears far-apart intervals first; only the rest are sampled. Always returns an array
     (``K`` = 1 for single-interval input).
     """
+    _check_buffer(buffer_mm)
     P0a, P1a, P0b, P1b = _interval_arrays(p0a, p1a, p0b, p1b)
     K = len(P0a)
     hit = np.zeros(K, dtype=bool)
