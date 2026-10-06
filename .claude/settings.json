@@ -1,0 +1,29 @@
+{
+  "model": "sonnet",
+  "effortLevel": "medium",
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+  },
+  "permissions": {
+    "additionalDirectories": ["C:\\Github\\WAAM_Validator"],
+    "allow": [
+      "Bash(python -m experiments.*)",
+      "Bash(python -m pytest *)",
+      "Bash(pytest *)",
+      "Bash(waam-validator *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git switch *)"
+    ],
+    "deny": [
+      "Edit(//c/Github/WAAM_Validator/**)",
+      "Edit(**/config.yaml)",
+      "Edit(**/target.stl)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)"
+    ]
+  }
+}
