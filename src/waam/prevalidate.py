@@ -212,7 +212,7 @@ class Timeline:
         code = self.chain_code(t0, p0q)
         if code != Code.OK:
             raise ValueError(f"robot {self.robot_id}: {code.name} at t={t0}")
-        if self._n + 1 >= len(self._mode):
+        if self._n >= len(self._mode):
             cap = max(2 * len(self._mode), 8)
             self._t = np.resize(self._t, cap + 1)
             self._xyz = np.resize(self._xyz, (cap + 1, 3))
@@ -231,8 +231,11 @@ class Timeline:
                   quantize_f32(seg.end_xyz_mm), _MODE_CODE[seg.mode])
 
     def pop_last(self) -> None:
+        """Remove the last segment. A closed timeline reopens: its hold (position and start
+        time) changes, so it must be closed (and re-checked) again."""
         if self._n == 0:
             raise IndexError("timeline is empty")
+        self.closed = False
         self._n -= 1
 
     @classmethod
@@ -363,7 +366,8 @@ def _window_bps(times: list[np.ndarray], t_from: float, t_to: float) -> np.ndarr
     hi = min(t_to, max(float(t[-1]) for t in times))
     if hi <= t_from:
         return np.array([t_from, t_from])
-    inner = [t[(t > t_from) & (t < hi)] for t in times]
+    inner = [t[np.searchsorted(t, t_from, "right"): np.searchsorted(t, hi, "left")]
+             for t in times]
     return np.unique(np.concatenate([[t_from, hi], *inner]))
 
 
@@ -391,12 +395,14 @@ def check_pair(rules: PrevalidateRules, tla: Timeline, tlb: Timeline,
 
 def check_hold(rules: PrevalidateRules, timelines: tuple[Timeline, Timeline, Timeline],
                robot_id: int, xy: Any, t_from: float) -> Verdict:
-    """Is parking ``robot_id`` at ``xy`` from ``t_from`` on (forever) safe vs what the others
-    have committed (closed timelines count as holding forever)?"""
+    """Is parking ``robot_id`` at ``xy`` from ``t_from`` on (forever) safe: inside its reach and
+    clear of what the others have committed (closed timelines count as holding forever)?"""
     xy = np.asarray(xy, dtype=np.float64)
     if xy.shape != (2,):
         raise ValueError(f"xy must have shape (2,), got {xy.shape}")
     q = quantize_f32(np.array([xy[0], xy[1], 0.0]))[:2]
+    if not geo.in_reach(rules.geom, robot_id, q):
+        return Verdict(False, Code.ROBOT_XY_REACH_VIOLATION, t_from, robot_id)
     for other in (1, 2, 3):
         tl = timelines[other - 1]
         if other == robot_id or tl.n_segments == 0:
@@ -452,6 +458,8 @@ def close_timeline(rules: PrevalidateRules, timelines: tuple[Timeline, Timeline,
     tl = timelines[robot_id - 1]
     if tl.n_segments == 0:
         return Verdict(False, Code.MISSING_ROBOT, 0.0, robot_id)
+    if tl.closed:
+        return OK
     tl.closed = True
     for other in (1, 2, 3):
         if other == robot_id:
@@ -499,3 +507,19 @@ def check_all(rules: PrevalidateRules, timelines: tuple[Timeline, Timeline, Time
         if not v.ok:
             violations.append(v)
     return Report(not violations, violations, warnings)
+
+
+def require_submittable(rules: PrevalidateRules,
+                        timelines: tuple[Timeline, Timeline, Timeline]) -> Report:
+    """Gate for the writer: every robot closed AND the full Validator-semantics check passes.
+
+    ``try_append`` alone does not verify holds of robots that were never closed, so a schedule
+    is only submittable through this function.
+    """
+    still_open = [tl.robot_id for tl in timelines if not tl.closed]
+    if still_open:
+        raise ValueError(f"robots {still_open} are not closed: their final hold is unverified")
+    report = check_all(rules, timelines)
+    if not report.ok:
+        raise ValueError(f"schedule is not valid: {report.verdict}")
+    return report

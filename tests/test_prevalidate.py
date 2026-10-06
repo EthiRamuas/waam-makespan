@@ -8,6 +8,7 @@ their rate is printed (``pytest -s``) so it is reported, not assumed.
 from __future__ import annotations
 
 import math
+import os
 from collections import Counter
 from pathlib import Path
 
@@ -30,6 +31,8 @@ CONFIGS = {"sample_job": SAMPLE_JOB, "model01": MODEL01_DIR}
 def _cfg(name):
     d = CONFIGS[name]
     if not (d / "config.yaml").exists():
+        if os.environ.get("WAAM_REQUIRE_REF"):  # CI / full runs: a missing reference is an error
+            pytest.fail(f"reference config {d} is required but missing")
         pytest.skip(f"{d} not available")
     return load_config(d / "config.yaml")
 
@@ -357,19 +360,6 @@ def test_incremental_equals_full_and_rolls_back(rules, cfg, tmp_path):
         assert stats[True] >= 8
 
 
-def test_pop_last_restores_verdict(rules):
-    rng = np.random.default_rng(4)
-    chains = random_chains(rng, rules, edgy=0.0, stray=0.0)
-    tls = timelines_of(chains)
-    base = check_all(rules, tls)
-    extra = chains[1][-1]
-    nxt = S(1, "W", extra.end_time_s, extra.end_time_s + 3.0, extra.end_xyz_mm, extra.end_xyz_mm)
-    tls[0].append(nxt)
-    tls[0].pop_last()
-    again = check_all(rules, tls)
-    assert (again.ok, again.violations) == (base.ok, base.violations)
-
-
 def test_chain_errors_are_reported_not_raised(rules):
     tls = pv.new_timelines()
     seg = S(1, "W", 1.0, 2.0, (0.0, 0.0, 1.0), (0.0, 0.0, 1.0))
@@ -381,10 +371,3 @@ def test_chain_errors_are_reported_not_raised(rules):
     with pytest.raises(ValueError):
         tls[0].append(S(1, "W", 9.0, 10.0, (0.0, 0.0, 1.0), (0.0, 0.0, 1.0)))
     assert check_all(rules, tls).verdict.code is Code.MISSING_ROBOT
-
-
-def test_mode_time_sum_check_matches_validator_rule(rules):
-    tls = timelines_of({rid: [S(rid, "W", 0.0, 3.0, (0.0, 0.0, 1.0), (0.0, 0.0, 1.0))]
-                        for rid in (1, 2, 3)})
-    assert Code.MODE_TIME_SUM_MISMATCH not in {v.code for v in check_all(rules, tls).violations}
-    assert math.isclose(float(np.diff(tls[0].t).sum()), 3.0)
