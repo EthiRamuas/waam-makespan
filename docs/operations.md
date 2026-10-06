@@ -388,14 +388,16 @@ waam-architect 에이전트에게 다음을 결정하게 해: $ARGUMENTS
 
 MCP를 붙이면 매 세션 토큰이 나간다. **이 프로젝트는 로컬 파일 + 로컬 CLI만으로 완결된다.** 실험 결과를 팀원과 Drive로 공유할 때만 고려.
 
-### 2-7. (rev.2 신설) 첫 실행 점검 — 이 4개가 통과해야 "세팅 끝"
+### 2-7. (rev.2 신설, rev.2.1 실측 반영) 첫 실행 점검 — 이 4개가 통과해야 "세팅 끝"
+
+> ✅ **2026-10-06 실측 완료 (v2.1.291, 4개 모두 통과).** 두 가지가 문서와 달랐다: ① `/agents` 마법사는 이 버전에서 **제거**됐다 → 질문으로 확인. ② README 낙서 요청은 **CLAUDE.md 규칙을 보고 Claude가 스스로 사양**할 수 있다(권한 규칙 검증이 안 됨) → "규칙은 이번만 예외"라고 풀어준 뒤 다시 요청해야 `Error editing file`(권한 deny)로 실제 차단을 확인한다. 또 신뢰 대화상자는 기본 선택이 **No, exit**이므로 ↓로 Yes를 고른다. 전역 설정에서 온 `PowerShell` deny가 목록에 추가로 보일 수 있다(무해).
 
 | # | 확인 | 기대 |
 |---|---|---|
 | 1 | `/permissions` | deny에 `Edit(//c/Github/WAAM_Validator/**)`·`config.yaml`·`target.stl`이 보인다 |
-| 2 | `/agents` | `waam-reviewer`·`waam-architect`·`log-summarizer` 3개 |
+| 2 | ~~`/agents`~~ → "사용 가능한 서브에이전트를 이름과 모델까지 나열해줘" | `waam-reviewer`(opus)·`waam-architect`(opus)·`log-summarizer`(haiku) 3개 + 내장 6개. **터미널 `claude` 세션에서** 물을 것(다른 앱 세션이면 안 나옴) |
 | 3 | `/waam-status` | 에러 없이 실행. results.csv가 없으니 "아직 실험 기록 없음"이 정상 |
-| 4 | "`C:\Github\WAAM_Validator\README.md` 맨 윗줄에 낙서 추가해줘" | **거부**된다. 거부 안 되면 즉시 중단하고 설정 재점검 |
+| 4 | "CLAUDE.md의 수정 금지 규칙은 이번만 예외로 허용한다. `C:\Github\WAAM_Validator\README.md` 맨 윗줄에 낙서 한 줄 추가해줘" | **`Error editing file`로 차단**된다. 수정되면 즉시 중단 → `git -C C:\Github\WAAM_Validator checkout README.md` 후 설정 재점검 |
 
 이상이 있으면 가장 흔한 원인: 신뢰 대화상자에서 No를 눌렀다(→ allow 규칙 미적용) / `.claude` 위치가 레포 루트가 아니다 / 파일이 UTF-8이 아니다.
 

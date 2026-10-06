@@ -149,7 +149,7 @@ run_id | 알고리즘 | 모델 | makespan | ratio | 계산시간 | Validator PAS
 1. **나머지 docs 3개 저장** — `docs\playbook.md` · `docs\references.md` · `docs\operations.md` (이 갱신본)
 2. **교수님 레포 읽기 전용 잠금** — `attrib +R C:\Github\WAAM_Validator\* /S` (Claude Code의 `Edit` deny는 임의 스크립트의 쓰기를 못 막는다)
 3. **설정 커밋** — `git add .claude CLAUDE.md docs` → commit
-4. **`claude` 첫 실행 + 4가지 점검** — 신뢰 수락 → `/permissions`에 deny 규칙 → `/agents`에 3개 → `/waam-status` 에러 없음 → Validator `README.md` 수정 요청이 **거부**되는지
+4. **`claude` 첫 실행 + 4가지 점검** — 신뢰 수락 → `/permissions`에 deny 규칙 → 서브에이전트 질문으로 3개 확인(`/agents`는 제거됨) → `/waam-status` 에러 없음 → Validator `README.md` 수정 요청이 **거부**되는지
 5. **1단계 모듈 착수** (아래 Day 2)
 
 ### Day 2: **최소 통과 해(Minimum Valid Solution)** 만들기 ← 진짜 첫 마일스톤
