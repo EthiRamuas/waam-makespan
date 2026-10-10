@@ -69,6 +69,20 @@
 - 내용: 작업 5(results.csv 스키마)만 진행한다(인터페이스 제안 → 사용자 승인 → 구현 → 리뷰 → 커밋). `slicing.py`는 구현하지 않고 명세만 코드 없이 올린다(야간 큐 후보 심사용). toolpath 설계는 하지 않는다.
 - 근거: toolpath(해칭·아크 스트라이크 수)는 해공간을 정하는 결정이라 하루 계획 안에서 서두르지 않는다.
 
+### C-17 — results.csv 추가 컬럼과 passed 의미
+- 일시: 2026-10-10 14:4x | 등급: B | 결정: **a) 필수 6컬럼 + 추가 7컬럼(run_at, commit, seed, lower_bound_s, validator_status, validator_version, notes); passed는 Validator PASS일 때만 True, 미실행이면 비움** | 상태: 결정
+- 추가 요구: `results.py`의 `compute_s` 정의를 docstring에 적는다("우리 알고리즘 실행 시간, Validator 실행 시간 제외").
+- 작업 5 인터페이스(`ResultRow`, `make_row`, `append_result`, `read_results`) 승인.
+
+### C-18 — slicing 명세 후보 결정
+- 일시: 2026-10-10 14:4x | 등급: B | 상태: 결정 (명세: `docs/specs/slicing.md`)
+- 1) **재구현.** Validator import는 오라클 테스트에만.
+- 2) 출력은 **shapely 객체.**
+- 3) 메시 결함은 **우선 raise** (repair는 필요해질 때 결정).
+- 4) 캐시는 **`.cache/waam/slicing/`** + `.gitignore`에 `.cache/` 한 줄 (dc76f73).
+- 5) 부피 오차는 **야간에 단언하지 않고 측정·기록만.** 통과/실패는 오라클 2·3으로만 판정.
+- 읽기 전용 확인(2026-10-10, 수정 없음): 모델 01~06 `target.stl`은 trimesh 기본 처리(정점 병합) 후 **6개 모두 watertight, winding 일치.** 원본 그대로는 모두 False(STL이 면마다 정점을 따로 저장). zmax = 12, 16, 12, 100, 700, 102 mm → 층 수 ceil(zmax/2) = 6, 8, 6, 50, 350, 51로 spec 표와 같다.
+
 ### C-07 — docs/experiments.md는 사람이 작성
 - 일시: 2026-10-10 13:32 | 등급: C | 결정: **그대로 유지** | 상태: 결정
 
