@@ -22,7 +22,9 @@ STL → 층 단면(shapely 객체). 3단계 `toolpath.py`의 입력이고, `lowe
 
 - 층 k의 단면 높이: `z_slice = build_plane_z + (k + 0.5) × layer_height`. `tcp_z_reference`와 무관하다(그것은 TCP z에만 영향).
 - 층 수: `max(0, ceil((zmax − build_plane_z) / layer_height))`.
-- 메시 전처리(Validator `load_target_mesh`와 같은 순서): 정점 병합 → 퇴화 면 제거 → 중복 면 제거 → 미참조 정점 제거 → 법선 정리.
+- 메시 전처리(Validator `load_target_mesh`와 같은 순서): 정점 병합 → 퇴화 면 제거 → 중복 면 제거 → 미참조 정점 제거.
+  - **법선(winding) 정리와 body count는 하지 않는다 (C-27로 추인).** 근거(가설): 단면 선분 집합은 방향을 제외하면 같고 even-odd 합집합은 방향과 무관하다. 한계: 혼합 winding 메시에서 WKB 정점 순서·면적이 ulp 수준에서 달라질 수 있다(리뷰어 실측 3.6e-12 mm², 우리는 재현하지 않음). Validator가 방향을 결정할 수 없는 메시에서 raise하는 검사도 하지 않는다.
+  - **build plane 가드 (C-27로 추인, 조건부):** `bounds.zmin < build_plane_z − geometry_epsilon`이면 `TARGET_BELOW_BUILD_PLANE`으로 raise한다. Validator `target.py` 81–85행과 같은 조건인지는 미확인이며, 다르면 가드를 삭제한다.
   - **`fill_holes` 등 repair는 하지 않는다. 전처리 뒤에도 watertight가 아니면 `TARGET_NOT_WATERTIGHT`로 raise한다 (C-18 결정 3).**
   - 읽기 전용 확인(2026-10-10): 모델 01~06의 STL은 원본 그대로는 `is_watertight`가 False이고(STL이 면마다 정점을 따로 저장하기 때문), trimesh 기본 처리(`process=True`, 정점 병합)를 거치면 6개 모두 watertight이고 winding이 일치한다. 이 확인은 Validator의 전처리 순서와 완전히 같지 않다. 구현이 오라클 2·3으로 일치를 증명한다.
 - 단면 선분: `trimesh.intersections.mesh_plane`으로 구하고 shapely로 루프를 만든다(scipy 불필요).
@@ -34,7 +36,8 @@ STL → 층 단면(shapely 객체). 3단계 `toolpath.py`의 입력이고, `lowe
 ## 4. 캐싱 (C-18 결정 4)
 
 - 위치: `.cache/waam/slicing/` (`.gitignore`에 `.cache/` 추가 완료, dc76f73).
-- 키: `sha256(STL 바이트)` + layer_height + build_plane_z + snap + geometry_epsilon + area_epsilon + 알고리즘 버전 상수.
+- 키: `sha256(STL 바이트)` + layer_height + build_plane_z + snap + geometry_epsilon + area_epsilon + 알고리즘 버전 상수 + shapely·GEOS·trimesh·numpy 버전 + `slicing.py` 소스 sha256 (뒤의 두 가지는 C-27로 추인).
+- 캐시 쓰기가 `OSError`로 실패하면 삼키고 슬라이싱 결과를 그대로 돌려준다 (C-27로 추인). 캐시는 최적화일 뿐이다.
 - 값: 층별 WKB. 같은 키에서는 바이트가 같은 결과를 돌려준다. STL이 한 바이트라도 다르면 미스.
 
 ## 5. 테스트 오라클 (통과/실패는 1~4와 6으로만 판정)
