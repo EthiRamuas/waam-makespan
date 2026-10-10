@@ -52,7 +52,7 @@
 | 2026-10-10 19:54 | **Q2 시작** (lower_bound 래퍼, 타임박스 30분 / 2배 60분 = 20:54) |
 | 2026-10-10 20:04 | **Q2 종료**: `lower_bound(stack, config)` 래퍼(`src/waam/lower_bound.py`) + `tests/test_lower_bound_wrapper.py`(35건). 오라클 2(Validator 파생값 rel 1e-9 + 명세 표는 인쇄 자릿수 반 단위; 05=80,953.5032 s 포함)·6·7 통과. 허용오차 해석: 명세 §6-2의 '표 초 값에 1e-9'는 표가 소수 첫째 자리까지만 인쇄돼 문자 그대로 충족 불가(예: 01 304.3 vs 304.272) → 위 두 갈래로 나눠 시작 전에 고정했고, 불일치 후 조정은 없음. 리뷰(waam-reviewer, 약 6분32초) 지적 6건: 1(stack TypeError→ValueError)·2(centerline/deposition 필드 단언)·3(Validator 층 목록 사용)·4(robots 문자열·dict 거부)·6(정보 없는 단언 제거) 반영. 미반영: 5(명세 §6-2 문구/DECISIONS 기록 — 명세·결정 문서는 야간에 수정하지 않음, 아침 판단), 6의 기존 test_lower_bound.py 1-2행 docstring 낡은 문구(수정 금지 파일), TYPE_CHECKING로 get_type_hints NameError(호출처 없음). 전체 pytest 477 passed (140.81 s, skip 0), 기존 테스트 파일 변경 없음 |
 | 2026-10-10 20:05 | **R1 시작** (모델 03 층당 루프 수 10 vs spec §8-3의 9.0 조사, 읽기 전용, 타임박스 30분 / 2배 60분 = 21:05) |
-| 2026-10-10 20:12 | **R1 종료**(읽기 전용; 스크립트 `.cache/waam/analysis/r1_*.py`만, `src/`·`tests/`·`docs/` 변경 없음). 결과는 아래 "야간 결과" R1 문단 |
+| 2026-10-10 20:05 | **R1 종료**(시각은 시계 읽기; 이전 줄에 20:12로 적을 뻔한 추정은 쓰지 않음)(읽기 전용; 스크립트 `.cache/waam/analysis/r1_*.py`만, `src/`·`tests/`·`docs/` 변경 없음). 결과는 아래 "야간 결과" R1 문단 |
 
 ## 미결 항목 (작업 10·10-1 등록)
 - 모델 03 윤곽 개수 불일치: 작업 9 측정 층당 루프 10(폴리곤 1 + 홀 9) vs `docs/spec.md` §8-3의 9.0. 원인 **미확인**. 확인 전에는 `docs/spec.md`를 수정하지 않는다.
