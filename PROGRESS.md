@@ -3,8 +3,8 @@
 ## 현재 상태 (체크포인트 갱신)
 - 단계: **1단계 종료** (geometry · segment · prevalidate · timing · writer). 2단계 진입: 작업 5 results.csv 스키마부터
 - 통과 테스트: 288 passed (Claude 실측, 10-10 15:0x, C-19 반영 후). 이후 DECISIONS.md만 수정
-- 막힌 곳: 없음. 결정 대기: C-06, C-15, C-21(config·target sha 대조, run_all 설계 때)
-- 다음 작업: lower_bound 명세(docs/specs/lower_bound.md) 결정 L-1~L-3, slicing·lower_bound ★4 승인(프롬프트 4)
+- 막힌 곳: 없음. 결정 대기: C-06, C-15, C-21(run_all 설계 때)
+- 다음 작업: slicing·lower_bound의 ★4 승인(프롬프트 4). 승인 뒤 야간 큐: lower_bound 순수 함수 → slicing → lower_bound 래퍼
 - 신호: 계속
 
 ## 시간 기록
@@ -37,3 +37,4 @@
 - **이 속도를 2~4단계 일정에 적용하지 않는다.** 1단계 모듈은 명세(Validator 판정식, CSV 계약)가 이미 확정돼 있었고 설계 결정이 인터페이스 2~3건뿐이었다. 계획 합계 약 2h35분(가설)을 약 1시간에 마쳤지만, 이를 slicing·toolpath·할당 설계의 예상 시간으로 환산하지 않는다(K6).
 | 2026-10-10 14:45 | 작업 5 완료: results.py + 스키마 테스트, 리뷰(waam-reviewer, 약 5분 33초) 지적 10건 중 5·6·7(일부)·8·10번과 2번 문서화 반영, 1·3·4·9번은 C-19/C-20으로 이월. pytest 273 passed 1 xfailed |
 | 2026-10-10 15:0x | C-20(0959290) · C-19(3b8da00) 별도 커밋으로 반영. lower_bound 명세 작성(읽기 전용 측정: 6개 모델 하한이 spec 표와 일치) |
+| 2026-10-10 15:0x | C-22 결정 반영: lower_bound 명세 확정(한계 §4 명시), 모델 05 재측정(80,953.5032 s, Validator 함수 결과). 야간 큐 자격 재판정: 명세 ✓ / ★4 승인만 남음 |
