@@ -55,6 +55,7 @@
 | 2026-10-10 20:05 | **R1 종료**(시각은 시계 읽기; 이전 줄에 20:12로 적을 뻔한 추정은 쓰지 않음)(읽기 전용; 스크립트 `.cache/waam/analysis/r1_*.py`만, `src/`·`tests/`·`docs/` 변경 없음). 결과는 아래 "야간 결과" R1 문단 |
 | 2026-10-10 20:05 | **R2 시작** (원판 기준 41%/56% 도달범위 문구 정정, 타임박스 20분 / 2배 40분 = 20:45) *(시각 정정: 커밋 c72641b 기준, 작업 11)* |
 | 2026-10-10 20:09 | **R2 종료**: `.claude/agents/waam-architect.md`·`docs/playbook.md`·`docs/operations.md`(§6-3 단계 정의를 C-23 기준으로, 자동화 시작점 문구 포함) 정정. grep: 세 파일에서 '원판' 표시 없는 41%/56%/55.6 줄 0건. 전체 pytest 477 passed (141.60 s), 테스트 파일 변경 없음. `docs/spec.md` 미수정 |
+| 2026-10-10 21:05 | 작업 7 설계 초안 저장(docs/drafts/design_plan_draft.md), 미확정 — 결정·명세로 옮기지 않음 |
 
 ## 미결 항목 (작업 10·10-1 등록)
 - (작업 11 등록) `slicing._load_mesh`의 build plane 가드(`TARGET_BELOW_BUILD_PLANE`)가 Validator `target.py` 81–85행과 같은 조건인지 **미확인**. 동등성 테스트(같은 메시에서 같은 판정) 필요 — 후속, 야간 큐 후보. 다르면 가드 삭제 (DECISIONS C-27 b).
