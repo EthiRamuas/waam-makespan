@@ -247,9 +247,10 @@ def _skill_snippets() -> dict[str, str]:
     skill files Claude Code actually loads (.claude/skills/*/SKILL.md)."""
     found = {}
     for md in sorted((REPO / ".claude" / "skills").glob("*/SKILL.md")):
-        for m in re.finditer(r'!`python -c "(.*?)" 2>&1', md.read_text(encoding="utf-8")):
+        for i, m in enumerate(re.finditer(r'!`python -c "(.*?)" 2>&1',
+                                          md.read_text(encoding="utf-8"))):
             if "results.csv" in m.group(1):
-                found[f"{md.parent.name}:{m.group(1)[60:100]}"] = m.group(1)
+                found[f"{md.parent.name}#{i}"] = m.group(1)
     return found
 
 
@@ -291,11 +292,27 @@ def test_best_per_model_picks_lowest_ratio_among_validator_pass_rows_only(tmp_pa
     assert "ref2" in out and out.count("ref") == 1 and "failed" not in out, out
 
 
-@pytest.mark.xfail(strict=True, reason="C-20 pending: waam-status's best-per-model one-liner "
-                   "dies on a PASS row whose ratio is empty (idxmin of all-NA) and then "
-                   "prints '(집계할 기록 없음)'")
 def test_best_per_model_survives_a_pass_row_without_ratio(tmp_path):
     _populate(tmp_path, with_empty_ratio_pass=True)
     code = next(c for c in _skill_snippets().values() if "idxmin" in c)
     proc = _run_snippet(code, tmp_path)
     assert proc.returncode == 0 and "ref2" in proc.stdout
+
+
+def test_best_per_model_with_only_ratioless_pass_rows_does_not_crash(tmp_path):
+    out = tmp_path / "experiments" / "results.csv"
+    append_result(out, make_row("m3", "noratio", compute_s=0.3, seed=0, commit="c",
+                                summary_path=SAMPLE_SUMMARY))  # PASS, ratio empty
+    code = next(c for c in _skill_snippets().values() if "idxmin" in c)
+    proc = _run_snippet(code, tmp_path)
+    assert proc.returncode == 0 and "Traceback" not in proc.stderr, proc.stderr
+
+
+def test_skill_output_keeps_model_and_commit_as_text(tmp_path):
+    out = tmp_path / "experiments" / "results.csv"
+    append_result(out, make_row("01", "a", compute_s=0.3, seed=0, commit="1234e56",
+                                summary_path=SAMPLE_SUMMARY, lower_bound_s=6.0))
+    code = next(c for c in _skill_snippets().values() if "tail(10)" in c)
+    shown = _run_snippet(code, tmp_path).stdout
+    assert re.search(r"\b01\b", shown) and "1234e56" in shown, shown  # not 1 / 1.234e+59
+

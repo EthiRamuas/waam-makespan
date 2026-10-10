@@ -1,1 +1,2 @@
 tests/fixtures/model01/config.yaml -text
+experiments/results.csv text eol=lf

@@ -109,7 +109,7 @@
 - 현재 상태: 코드는 ERROR 등 PASS/FAIL이 아닌 status를 거부한다. docstring에 한계를 적었다.
 
 ### C-20 — waam-status 한 줄 명령 / results.csv 줄바꿈 (작업 5 리뷰 3·4·9번)
-- 등급: B | 상태: **대기** (`.claude/skills/*/SKILL.md`와 `docs/operations.md`, `.gitattributes`를 건드려야 해서 임의로 하지 않음)
+- 등급: B | 상태: **결정: a** (2026-10-10) — 한 줄을 `d[(d.passed==True)&d.ratio.notna()]`로, `read_csv`에 `dtype={'model':str,'commit':str,'algo':str}`, `operations.md` §2-4와 `.claude/skills/*/SKILL.md` 모두 수정, `.gitattributes`에 `experiments/results.csv text eol=lf` 추가. xfail 표시 제거. (원래 상태: 대기) (`.claude/skills/*/SKILL.md`와 `docs/operations.md`, `.gitattributes`를 건드려야 해서 임의로 하지 않음)
 - 문제 정의: (1) `waam-status`의 모델별 최고 기록 한 줄이 PASS 행의 ratio가 비어 있으면 `idxmin ... all NA`로 죽고 "(집계할 기록 없음)"이라고 거짓으로 출력한다. `lower_bound.py`가 없는 지금 첫 Validator 실행 행은 ratio가 비어 있을 가능성이 높다(실측: 합성 행으로 재현, 테스트가 xfail로 고정). (2) autocrlf=true 환경에서 results.csv를 커밋·체크아웃하면 CRLF가 되어 append가 영구 거부된다(리뷰어 실측). (3) 한 줄 출력에서 model "01"이 정수 1, 7자리 hex 커밋이 가끔 float로 표시된다.
 - 선택지: a) 한 줄을 `d=d[(d.passed==True)&d.ratio.notna()]`로 바꾸고 `pd.read_csv(..., dtype={'model':str,'algo':str,'commit':str})`을 쓴다(operations.md §2-4와 SKILL.md 둘 다), `.gitattributes`에 `experiments/results.csv text eol=lf` 추가  b) 한 줄만 고치고 줄바꿈은 나중에  c) 그대로 두고 lower_bound.py 이후로 미룸
 - 권고(초안): a — 세 항목 모두 작고 되돌림이 쉽다. 테스트(`test_best_per_model_survives_a_pass_row_without_ratio`)는 xfail(strict)이라 수정하면 바로 통과로 바뀌며 xfail 표시를 지워야 한다.

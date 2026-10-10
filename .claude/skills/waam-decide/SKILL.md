@@ -10,6 +10,6 @@ allowed-tools:
 waam-architect 에이전트에게 다음을 결정하게 해: $ARGUMENTS
 
 최근 실험 데이터:
-!`python -c "import pandas as pd; d=pd.read_csv('experiments/results.csv'); print(d.tail(20).to_string())" 2>&1 || echo "(results.csv 아직 없음)"`
+!`python -c "import pandas as pd; d=pd.read_csv('experiments/results.csv',dtype={'model':str,'commit':str,'algo':str}); print(d.tail(20).to_string())" 2>&1 || echo "(results.csv 아직 없음)"`
 
 데이터가 없으면 측정 계획부터 세우게 한다. 숫자를 지어내지 않는다.
