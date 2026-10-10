@@ -226,6 +226,8 @@ pytest -q                                           # 골든 테스트
 
 구간 충돌 같은 연속시간 판정은 샘플링 밀도로 보수성을 주장하지 않는다(Validator 샘플 시각과 일치 보장 없음). Lipschitz 하한으로 보수성을 보장하고, 반례는 Validator를 직접 돌린 골든 테스트로 고정한다.
 
+스케줄러는 로봇마다 일을 끝내면 prevalidate.close_timeline을 호출한다. writer는 쓰기 전에 prevalidate.require_submittable을 반드시 통과시킨다. 닫지 않은 타임라인은 마지막 정지 구간이 검증되지 않았다. (DECISIONS.md C-04)
+
 보고 형식
 
 
