@@ -45,5 +45,12 @@
 | 2026-10-10 16:15 | 작업 9 시작(읽기 전용, 결과 .cache/waam/analysis/, 커밋 없음) |
 | 2026-10-10 16:17 | 작업 9 완료(읽기 전용, 결과 .cache/waam/analysis/REPORT.md, 커밋 없음). 발견: CLAUDE.md의 도달범위 구조(41.2/55.6/3.2/0%)는 workspace 원판 기준(측정 0/41.24/55.58/3.18%), 부품 단면 기준은 모델마다 다름(전용 면적: 01·02·03·06 0%, 04 2.3%, 05 27.1%); 모델 03 층당 루프 10 vs spec §8-3의 9.0(원인 미확인) |
 
+## 미결 항목 (작업 10 등록)
+- 모델 03 윤곽 개수 불일치: 작업 9 측정 층당 루프 10(폴리곤 1 + 홀 9) vs `docs/spec.md` §8-3의 9.0. 원인 **미확인**. 확인 전에는 `docs/spec.md`를 수정하지 않는다.
+- `docs/operations.md` §6-3의 단계 정의(2단계 lower_bound·runner·tests / 3단계 slicing·toolpath·baseline / 4단계 설계)가 C-23(2단계 B′, 3단계 toolpath v0→baseline_sector→run_all)과 다르다. 수정하지 않았다(C-23 기준이 현재 기준).
+- CLAUDE.md "도달범위 구조"의 배분 골격은 원판 기준 수치에 기대고 있어 부품 기준 재검토 필요 표시를 넣었다. 새 배분 방침은 없다(C-26 입력 메모).
+
+| 2026-10-10 (시각 미기록) | 작업 10: 문서만 수정(CLAUDE.md 도달범위 정정, docs/measurements/reach_analysis.md, DECISIONS C-26, PROGRESS 미결). 시작·종료 시각과 사용량은 사용자가 보고한 값만 적는다 — 미보고 |
+
 ## 일정
 - 중간평가 10/20(화): 진행 상황 평가. 3단계(toolpath v0 → baseline_sector → run_all)의 목표 시점이다.
