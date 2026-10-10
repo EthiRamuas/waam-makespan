@@ -2,7 +2,7 @@
 
 ## 현재 상태 (체크포인트 갱신)
 - 단계: **1단계 종료.** 2단계(B′, C-23) 진행: slicing → lower_bound(야간) → 안전망 탐침(모델 03, `experiments/`) + 형상 판정식 확인(완료, C-24 확인 결과) + 해칭 간격 스윕
-- 통과 테스트: 477 passed (Claude 실측, 10-10 20:04, 야간 Q2 반영 후). 야간 현재 항목: Q1·Q2 완료 → R1, 막힌 곳 없음, 신호: 계속
+- 통과 테스트: 477 passed (Claude 실측, 10-10 20:04, 야간 Q2 반영 후). 야간 큐(Q1·Q2·R1·R2) 전부 종료, 막힌 곳 없음, 신호: 계속
 - 막힌 곳: 없음. 결정 대기: C-06, C-15(데드라인: 4단계 첫머리), C-21(run_all 설계 때), C-24(coverage 활용, 데드라인: 3단계 toolpath 설계 시작 전), C-25(비공개 모델 메시 repair, 15주차 전)
 - 다음 작업(B′ 순서): 작업 9(읽기 전용 분석, .cache/waam/analysis/) → (18:40 이후) slicing → lower_bound 래퍼 → 안전망 탐침 + 해칭 간격 스윕 → (3단계) toolpath v0 → baseline_sector → run_all
 - 신호: 계속
@@ -54,17 +54,43 @@
 | 2026-10-10 20:05 | **R1 시작** (모델 03 층당 루프 수 10 vs spec §8-3의 9.0 조사, 읽기 전용, 타임박스 30분 / 2배 60분 = 21:05) |
 | 2026-10-10 20:05 | **R1 종료**(시각은 시계 읽기; 이전 줄에 20:12로 적을 뻔한 추정은 쓰지 않음)(읽기 전용; 스크립트 `.cache/waam/analysis/r1_*.py`만, `src/`·`tests/`·`docs/` 변경 없음). 결과는 아래 "야간 결과" R1 문단 |
 | 2026-10-10 20:06 | **R2 시작** (원판 기준 41%/56% 도달범위 문구 정정, 타임박스 20분 / 2배 40분 = 20:46) |
+| 2026-10-10 20:09 | **R2 종료**: `.claude/agents/waam-architect.md`·`docs/playbook.md`·`docs/operations.md`(§6-3 단계 정의를 C-23 기준으로, 자동화 시작점 문구 포함) 정정. grep: 세 파일에서 '원판' 표시 없는 41%/56%/55.6 줄 0건. 전체 pytest 477 passed (141.60 s), 테스트 파일 변경 없음. `docs/spec.md` 미수정 |
 
 ## 미결 항목 (작업 10·10-1 등록)
 - 모델 03 윤곽 개수 불일치: 작업 9 측정 층당 루프 10(폴리곤 1 + 홀 9) vs `docs/spec.md` §8-3의 9.0. 원인 **미확인**. 확인 전에는 `docs/spec.md`를 수정하지 않는다.
 - `docs/operations.md` §6-3의 단계 정의(2단계 lower_bound·runner·tests / 3단계 slicing·toolpath·baseline / 4단계 설계)가 C-23(2단계 B′, 3단계 toolpath v0→baseline_sector→run_all)과 다르다. 수정하지 않았다(C-23 기준이 현재 기준).
 - CLAUDE.md "도달범위 구조"의 배분 골격은 원판 기준 수치에 기대고 있어 부품 기준 재검토 필요 표시를 넣었다. 새 배분 방침은 없다(C-26 입력 메모).
-- 구 도달범위 문구(41%/56%, 원판 기준 수치)가 `docs/spec.md`, `docs/playbook.md`, `docs/operations.md`, `.claude/agents/waam-architect.md`에 남아 있다. 수정하지 않았다. 특히 `waam-architect.md`는 에이전트 프롬프트라 정정 우선순위가 높다. `docs/spec.md`는 교수 제공 명세와의 관계를 확인한 뒤에만 수정한다.
+- 구 도달범위 문구(41%/56%, 원판 기준 수치)가 `docs/spec.md`, `docs/playbook.md`, `docs/operations.md`, `.claude/agents/waam-architect.md`에 남아 있다. → 야간 R2(20:09)에서 `waam-architect.md`·`playbook.md`·`operations.md`는 정정함. `docs/spec.md`는 미수정(교수 제공 명세와의 관계를 확인한 뒤에만 수정). 원래 메모: 특히 `waam-architect.md`는 에이전트 프롬프트라 정정 우선순위가 높다. `docs/spec.md`는 교수 제공 명세와의 관계를 확인한 뒤에만 수정한다.
 
 ## 일정
 - 중간평가 10/20(화): 진행 상황 평가. 3단계(toolpath v0 → baseline_sector → run_all)의 목표 시점이다.
 
 ## 야간 결과 (2026-10-10 야간 세션, 작성 중)
+
+### 큐 대비 결과
+| 항목 | 상태 | 시작 → 종료 (시계 읽기) | 비고 |
+|---|---|---|---|
+| Q1 slicing | 완료 | 19:38 → 19:53 | 리뷰 약 7분18초 포함, 타임박스 70분 이내 |
+| Q2 lower_bound 래퍼 | 완료 | 19:54 → 20:04 | 리뷰 약 6분32초 포함, 타임박스 30분 이내 |
+| R1 모델 03 루프 수 | 완료 | 20:05 → 20:05(분 단위 읽기) | 읽기 전용, 아래 문단 |
+| R2 도달범위 문구 정정 | 완료 | 20:06 → 20:09 | 타임박스 20분 이내 |
+- 세션 시작 19:36(사람이 알려준 시각), 사전 점검 `git stash list`·`python -I` 모두 권한 프롬프트 없이 실행됨.
+- 모델 05 슬라이싱(빈 캐시, 별도 프로세스, timeout 600 s): **6.01 s** → 05를 오라클 1·3(및 lower_bound 오라클 2)에 포함.
+- stash 목록: 0건 (`git stash list` 출력 없음, 20:09).
+- `DECISIONS.md`: 이번 세션에서 보류·신규 결정을 만들지 않았다(수정 안 함).
+
+**변경:** slicing(`src/waam/slicing.py`) + lower_bound 래퍼 + 테스트 83건 추가, R2로 문서 3개의 도달범위 문구 정정, R1 조사 기록
+**측정:** 모델별 ratio = 미측정(toolpath·할당 없음) | 모델별 하한은 Validator 값과 일치(예: 05 = 80,953.5032 s) | 계산시간: 05 슬라이싱 6.01 s | Validator PASS: 미측정(이번 세션에서 Validator 실행 안 함) | pytest 477 passed (기존 394 + 신규 83, skip 0)
+**판단:** 병합 전에 아래 3개 지점을 직접 보고, 명세 문서(`slicing.md` §3 법선 정리 생략, `lower_bound.md` §6-2 허용오차 해석)를 고칠지와 모델 03의 루프 수 집계 기준(R1)을 정해야 한다.
+
+### 리뷰 지적 처리
+- Q1 (waam-reviewer 9건): 반영 — 1 캐시 쓰기 실패 격리·tmp 고유명, 2 키 파라미터별 테스트, 3 캐시 키에 라이브러리 버전·소스 해시, 4 fallback·SECTION_FAILED 테스트, 5·6 docstring 정정, 7 닫힘 허용오차 테스트, 8 시간 단언 → monkeypatch, 9 오라클 3에 05 포함. 미반영: `docs/specs/slicing.md` §3 '법선 정리' 문구에 의도된 생략 표기(야간에 명세 수정 안 함).
+- Q2 (waam-reviewer 6건): 반영 — 1 stack TypeError→ValueError, 2 필드 단언, 3 Validator 층 목록, 4 robots 문자열·dict 거부, 6 정보 없는 단언 제거. 미반영: 5 명세 §6-2 문구/DECISIONS 기록, 기존 `tests/test_lower_bound.py` docstring 낡은 문구(수정 금지 파일), get_type_hints NameError(호출처 없음).
+
+### 사람이 직접 볼 지점 3개
+1. `src/waam/slicing.py` `_load_mesh`: Validator와 달리 winding 정리·body count 생략, repair 없이 비 watertight는 raise, build plane 아래 메시 거부(`TARGET_BELOW_BUILD_PLANE`, 명세에 없던 가드). 혼합 winding 메시에서는 WKB 정점 순서·면적이 ulp 수준에서 달라질 수 있다(리뷰어 실측 3.6e-12 mm²).
+2. `src/waam/slicing.py` 캐시: 키에 소스 파일 sha256 포함(편집할 때마다 무효화), 쓰기 실패는 삼킴(`except OSError`). 기본 캐시 위치 `.cache/waam/slicing/`.
+3. `docs/operations.md` §6-3: 단계 정의를 C-23 기준으로 바꾸면서 '자동화 시작점' 문구(2단계 종료 → 3단계 종료)까지 고쳤다 — 요청 범위(단계 정의 정렬)에 포함된다고 판단했으나 해석이 갈릴 수 있다.
 
 ### R1 — 모델 03 층당 루프 수 10 vs `docs/spec.md` §8-3의 9.0
 **확인** (Validator 함수 `target._horizontal_section_polygons`·`_even_odd_union`·`slice_target_layers`를 직접 호출한 실측, 스크립트 `.cache/waam/analysis/r1_loops_03.py`·`r1_all.py`·`r1_split.py`)
