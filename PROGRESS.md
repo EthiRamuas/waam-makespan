@@ -1,10 +1,10 @@
 # PROGRESS.md
 
 ## 현재 상태 (체크포인트 갱신)
-- 단계: 1단계 마무리 (geometry · segment · prevalidate 완료 / timing · writer 진행 예정)
-- 통과 테스트: 151 passed in 63.93s (Claude 실측, 10-10 13:33)
-- 막힌 곳: C-05 fixture 복사 대기 (사용자가 PowerShell로 수행. 지금은 블로커 아님)
-- 다음 작업: 작업 2 timing 인터페이스 제안 (14:15 승인)
+- 단계: 1단계 마무리 (geometry · segment · prevalidate · timing 완료 / writer 진행 예정)
+- 통과 테스트: 180 passed, skip 0 in 64.23s (Claude 실측, 10-10 13:45)
+- 막힌 곳: 없음 (C-05 완료)
+- 다음 작업: 작업 3 writer.py + 자체 린터 (인터페이스 제안 → 승인)
 - 신호: 계속
 
 ## 시간 기록
@@ -15,3 +15,5 @@
 
 계획 중반(15:00) 계획 대비 결과 한 줄: (미기록)
 | 2026-10-10 13:34 | 작업 1 완료·커밋 (pytest 151 passed 실측) |
+| 2026-10-10 13:36 | 작업 2 시작 (C-08/C-09 승인 직후) |
+| 2026-10-10 13:45 | 작업 2 완료: timing.py 구현, 리뷰(waam-reviewer, 약 5분 12초) 지적 8건 중 1~7 반영·8 테스트로 고정, pytest 180 passed |
