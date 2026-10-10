@@ -101,7 +101,7 @@
 - 권고(초안): a — 제출 경로의 마지막 게이트가 우리가 부과한 제약을 보지 않으면 "Validator만 통과하는 비물리 해"가 나갈 수 있다. 단 precedence.py 설계 이후에 정할 수 있으므로 지금은 결정하지 않는다.
 
 ### C-19 — results.csv의 passed가 거짓으로 채워질 수 있는 경로 (작업 5 리뷰 1·6번)
-- 등급: B | 상태: **대기**
+- 등급: B | 상태: **결정: a** (2026-10-10) — `make_row`에 `trajectory_path` 필수, `summary_path.name == "summary.json"` 요구, summary 폴더의 `validation_inputs.json`의 `inputs["trajectory.csv"].sha256`과 `trajectory_path`의 sha256을 대조(다르면 raise). config.yaml·target.stl sha 대조는 넣지 않고 C-21로 남김. (원래 상태: 대기)
 - 문제 정의: `make_row(summary_path=...)`는 그 summary.json이 *이번* trajectory.csv의 결과인지 확인하지 못한다. 이전 run·다른 모델·다른 config의 PASS가 새 해에 붙을 수 있다("돌리지 않은 것을 돌렸다고 쓰지 않는다" 위반 경로). 호출자(run_all)가 아직 없어 실제 피해는 없다(추정).
 - 충족 조건: 기록된 PASS가 해당 trajectory.csv를 실제로 검증한 결과임이 코드로 강제된다.
 - 선택지: a) `make_row`에 `trajectory_path`를 필수 인자로 추가하고 summary와 같은 폴더의 `validation_inputs.json`의 `trajectory.csv` sha256과 대조(다르면 raise). 필요하면 config·target sha256도 대조  b) 현행 유지 + docstring 경고만  c) ERROR(error.json)를 별도 경로로 받는 정책까지 함께 정함
@@ -114,3 +114,8 @@
 - 선택지: a) 한 줄을 `d=d[(d.passed==True)&d.ratio.notna()]`로 바꾸고 `pd.read_csv(..., dtype={'model':str,'algo':str,'commit':str})`을 쓴다(operations.md §2-4와 SKILL.md 둘 다), `.gitattributes`에 `experiments/results.csv text eol=lf` 추가  b) 한 줄만 고치고 줄바꿈은 나중에  c) 그대로 두고 lower_bound.py 이후로 미룸
 - 권고(초안): a — 세 항목 모두 작고 되돌림이 쉽다. 테스트(`test_best_per_model_survives_a_pass_row_without_ratio`)는 xfail(strict)이라 수정하면 바로 통과로 바뀌며 xfail 표시를 지워야 한다.
 
+### C-21 — Validator 실행 결과가 공식 config.yaml·target.stl로 돌았는지 대조
+- 등급: B | 상태: **대기** (run_all 설계 때 결정, C-19에서 분리됨)
+- 문제 정의: C-19는 summary.json이 *이 trajectory.csv*의 결과임을 보장하지만, 그 Validator 실행이 *공식 config.yaml·target.stl*(모델 원본)로 돌았는지는 보장하지 않는다. `validation_inputs.json`에 두 파일의 sha256이 기록돼 있다(실측: sample_job fixture).
+- 선택지(초안): a) run_all이 모델 원본의 sha256을 알고 있다가 `make_row`에서 대조 b) run_all이 job 디렉터리를 만들 때 원본을 그대로 복사했음을 보증하고 대조는 생략 c) 대조하지 않음
+- 고려할 점: 원본 sha는 모델별 `target.stl`만 다르고 config.yaml은 6개 모두 같다(`bf3b30c6…`). 모델 목록을 코드에 박지 않고 어떻게 알려 줄지가 설계 항목이다.

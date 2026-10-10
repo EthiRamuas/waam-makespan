@@ -31,9 +31,11 @@ Rules
 - ONE WRITER AT A TIME. ``append_result`` is not safe against concurrent appends (measured:
   rows are lost and headers duplicated). A parallel sweep must give every worker its own file
   and merge afterwards; nothing here locks.
-- ``make_row`` trusts that ``summary_path`` is the summary of THIS run's trajectory.csv; it
-  cannot check that (DECISIONS.md C-19, open). Callers must pass the summary.json that the
-  Validator wrote for the file they just produced.
+- ``make_row`` binds a Validator verdict to the trajectory it judged (DECISIONS.md C-19): the
+  summary must be named ``summary.json``, sit next to the Validator's ``validation_inputs.json``,
+  and that file's sha256 of ``trajectory.csv`` must equal the sha256 of ``trajectory_path``.
+  Not checked yet: that the Validator ran with the official ``config.yaml`` / ``target.stl``
+  (DECISIONS.md C-21, to be decided when ``run_all`` is designed).
 - The invariants live in ``ResultRow.__post_init__``, so no construction path can produce a
   row that claims a Validator verdict without one.
 """
@@ -41,6 +43,7 @@ Rules
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import math
@@ -136,13 +139,38 @@ def _read_summary(path: Path) -> tuple[str, str, float]:
     return status, version, float(makespan)
 
 
+def _verify_binding(summary_path: Path, trajectory_path: Path) -> None:
+    """The summary must be the Validator's verdict on exactly this trajectory.csv (C-19)."""
+    summary_path = Path(summary_path)
+    if summary_path.name != "summary.json":
+        raise ValueError(f"{summary_path}: the file must be named summary.json")
+    inputs = summary_path.with_name("validation_inputs.json")
+    if not inputs.is_file():
+        raise ValueError(f"{inputs} is missing: cannot tell which trajectory this verdict is for")
+    try:
+        want = json.loads(inputs.read_text(encoding="utf-8"))["inputs"]["trajectory.csv"]["sha256"]
+    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"{inputs}: no inputs['trajectory.csv']['sha256'] ({exc!r})") from exc
+    got = hashlib.sha256(Path(trajectory_path).read_bytes()).hexdigest()
+    if not isinstance(want, str) or got != want.lower():
+        raise ValueError(f"{summary_path} was not produced for {trajectory_path}: trajectory "
+                         f"sha256 {got} != recorded {want!r}")
+
+
 def make_row(model: str, algo: str, *, compute_s: float, seed: int | None, commit: str,
-             lower_bound_s: float | None = None, summary_path: Path | None = None,
-             makespan_s: float | None = None, notes: str = "",
-             run_at: str | None = None) -> ResultRow:
-    """Build a row. Validator-derived fields come only from ``summary_path``'s summary.json."""
+             trajectory_path: Path, lower_bound_s: float | None = None,
+             summary_path: Path | None = None, makespan_s: float | None = None,
+             notes: str = "", run_at: str | None = None) -> ResultRow:
+    """Build a row. Validator-derived fields come only from ``summary_path``'s summary.json.
+
+    ``trajectory_path`` is the trajectory.csv this run produced (it must exist). If a
+    ``summary_path`` is given, that summary must belong to exactly this file (sha256).
+    """
+    if not Path(trajectory_path).is_file():
+        raise ValueError(f"trajectory_path {trajectory_path} is not a file")
     status, version, value = "", "", None
     if summary_path is not None:
+        _verify_binding(summary_path, trajectory_path)
         status, version, value = _read_summary(summary_path)
         if makespan_s is not None and not math.isclose(value, float(makespan_s), rel_tol=1e-9):
             raise ValueError(f"makespan_s {makespan_s!r} differs from summary.json's {value!r}")

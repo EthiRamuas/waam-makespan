@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -17,21 +18,35 @@ from waam.results import COLUMNS, ResultRow, append_result, make_row, read_resul
 
 REPO = Path(__file__).resolve().parents[1]
 SAMPLE_SUMMARY = next((SAMPLE_JOB / "output").glob("*/summary.json"))  # the Validator's own file
+SAMPLE_TRAJ = SAMPLE_JOB / "trajectory.csv"  # the file that summary.json judged
+
+
+def mk(*a, **kw):
+    """results.make_row; trajectory_path defaults to the sample trajectory (the one the real
+    sample summary belongs to)."""
+    kw.setdefault("trajectory_path", SAMPLE_TRAJ)
+    return results.make_row(*a, **kw)
 
 
 def _row(**kw):
-    base = dict(model="01", algo="a", compute_s=1.5, seed=7, commit="abc1234",
+    base = dict(trajectory_path=SAMPLE_TRAJ, model="01", algo="a", compute_s=1.5, seed=7, commit="abc1234",
                 makespan_s=100.0, run_at="2026-10-10T15:00:00+09:00")
     base.update(kw)
-    return make_row(**base)
+    return mk(**base)
 
 
-def _synthetic_summary(tmp_path, status, makespan=50.0, version="1.0.1"):
-    """TEST INPUT for the parser only (not a Validator result)."""
-    p = tmp_path / f"summary_{status}.json"
-    p.write_text(json.dumps({"status": status, "validator_version": version,
-                             "schedule": {"makespan_s": makespan}}), encoding="utf-8")
-    return p
+def _synthetic_summary(tmp_path, status, makespan=50.0, version="1.0.1", trajectory=None):
+    """TEST INPUT for the parser only (not a Validator result): summary.json plus the
+    validation_inputs.json that binds it to ``trajectory`` (default: the sample trajectory)."""
+    d = tmp_path / f"run_{status}_{makespan}"
+    d.mkdir(exist_ok=True)
+    (d / "summary.json").write_text(json.dumps({"status": status, "validator_version": version,
+                                                "schedule": {"makespan_s": makespan}}),
+                                    encoding="utf-8")
+    sha = hashlib.sha256(Path(trajectory or SAMPLE_TRAJ).read_bytes()).hexdigest()
+    (d / "validation_inputs.json").write_text(
+        json.dumps({"inputs": {"trajectory.csv": {"sha256": sha}}}), encoding="utf-8")
+    return d / "summary.json"
 
 
 # ------------------------------------------------------------------- columns / docs
@@ -50,7 +65,7 @@ def test_first_six_columns_are_the_skills_promise_and_docstring_defines_compute_
 
 def test_passed_and_makespan_come_from_the_validators_summary_json_unprocessed():
     sj = json.loads(SAMPLE_SUMMARY.read_text(encoding="utf-8"))
-    r = make_row("sample", "ref", compute_s=0.1, seed=0, commit="c", summary_path=SAMPLE_SUMMARY,
+    r = mk("sample", "ref", compute_s=0.1, seed=0, commit="c", summary_path=SAMPLE_SUMMARY,
                  lower_bound_s=6.0)
     assert r.makespan_s == sj["schedule"]["makespan_s"] == 18.0  # taken as is
     assert r.validator_status == sj["status"] == "PASS" and r.passed is True
@@ -59,7 +74,7 @@ def test_passed_and_makespan_come_from_the_validators_summary_json_unprocessed()
 
 
 def test_non_pass_summary_gives_passed_false(tmp_path):
-    r = make_row("m", "a", compute_s=0.0, seed=1, commit="c",
+    r = mk("m", "a", compute_s=0.0, seed=1, commit="c",
                  summary_path=_synthetic_summary(tmp_path, "FAIL"))
     assert r.passed is False and r.validator_status == "FAIL"
 
@@ -76,9 +91,9 @@ def test_ratio_is_empty_without_a_lower_bound():
 
 def test_summary_and_explicit_makespan_must_agree(tmp_path):
     s = _synthetic_summary(tmp_path, "PASS", makespan=50.0)
-    make_row("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=s, makespan_s=50.0)
+    mk("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=s, makespan_s=50.0)
     with pytest.raises(ValueError, match="differs from summary"):
-        make_row("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=s, makespan_s=51.0)
+        mk("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=s, makespan_s=51.0)
 
 
 @pytest.mark.parametrize("kw", [
@@ -144,27 +159,27 @@ def test_malformed_or_non_validation_summary_is_refused(tmp_path, payload):
     p = tmp_path / "summary.json"
     p.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError):
-        make_row("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=p, makespan_s=123.0)
+        mk("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=p, makespan_s=123.0)
 
 
 def test_summary_without_makespan_never_borrows_the_callers_value(tmp_path):
     p = tmp_path / "summary.json"
     p.write_text(json.dumps({"status": "PASS", "validator_version": "1.0.1"}), encoding="utf-8")
     with pytest.raises(ValueError):
-        make_row("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=p, makespan_s=123.0)
+        mk("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=p, makespan_s=123.0)
 
 
 def test_makespan_mismatch_threshold_is_tight(tmp_path):
     s = _synthetic_summary(tmp_path, "PASS", makespan=50.0)
     with pytest.raises(ValueError, match="differs from summary"):
-        make_row("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=s, makespan_s=50.001)
+        mk("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=s, makespan_s=50.001)
 
 
 def test_passed_true_false_and_empty_roundtrip_with_literal_csv_values(tmp_path):
     p = tmp_path / "results.csv"
-    rows = [make_row("m", "a", compute_s=1.0, seed=7, commit="c",
+    rows = [mk("m", "a", compute_s=1.0, seed=7, commit="c",
                      summary_path=_synthetic_summary(tmp_path, "PASS")),
-            make_row("m", "b", compute_s=1.0, seed=8, commit="c",
+            mk("m", "b", compute_s=1.0, seed=8, commit="c",
                      summary_path=_synthetic_summary(tmp_path, "FAIL")),
             _row(seed=9)]
     for r in rows:
@@ -261,16 +276,16 @@ def _run_snippet(code: str, cwd: Path) -> subprocess.CompletedProcess:
 
 def _populate(tmp_path, *, with_empty_ratio_pass=False):
     out = tmp_path / "experiments" / "results.csv"
-    append_result(out, make_row("sample", "ref", compute_s=0.1, seed=0, commit="c",
+    append_result(out, mk("sample", "ref", compute_s=0.1, seed=0, commit="c",
                                 summary_path=SAMPLE_SUMMARY, lower_bound_s=6.0))
-    append_result(out, make_row("sample", "ref2", compute_s=0.2, seed=0, commit="c",
+    append_result(out, mk("sample", "ref2", compute_s=0.2, seed=0, commit="c",
                                 summary_path=SAMPLE_SUMMARY, lower_bound_s=9.0))
     append_result(out, _row(lower_bound_s=40.0))  # Validator not run: passed stays empty
-    append_result(out, make_row("m2", "failed", compute_s=0.3, seed=0, commit="c",
+    append_result(out, mk("m2", "failed", compute_s=0.3, seed=0, commit="c",
                                 summary_path=_synthetic_summary(tmp_path, "FAIL"),
                                 lower_bound_s=10.0))
     if with_empty_ratio_pass:  # a PASS before lower_bound.py exists: ratio is empty
-        append_result(out, make_row("m3", "noratio", compute_s=0.3, seed=0, commit="c",
+        append_result(out, mk("m3", "noratio", compute_s=0.3, seed=0, commit="c",
                                     summary_path=SAMPLE_SUMMARY))
     return out
 
@@ -301,7 +316,7 @@ def test_best_per_model_survives_a_pass_row_without_ratio(tmp_path):
 
 def test_best_per_model_with_only_ratioless_pass_rows_does_not_crash(tmp_path):
     out = tmp_path / "experiments" / "results.csv"
-    append_result(out, make_row("m3", "noratio", compute_s=0.3, seed=0, commit="c",
+    append_result(out, mk("m3", "noratio", compute_s=0.3, seed=0, commit="c",
                                 summary_path=SAMPLE_SUMMARY))  # PASS, ratio empty
     code = next(c for c in _skill_snippets().values() if "idxmin" in c)
     proc = _run_snippet(code, tmp_path)
@@ -310,9 +325,69 @@ def test_best_per_model_with_only_ratioless_pass_rows_does_not_crash(tmp_path):
 
 def test_skill_output_keeps_model_and_commit_as_text(tmp_path):
     out = tmp_path / "experiments" / "results.csv"
-    append_result(out, make_row("01", "a", compute_s=0.3, seed=0, commit="1234e56",
+    append_result(out, mk("01", "a", compute_s=0.3, seed=0, commit="1234e56",
                                 summary_path=SAMPLE_SUMMARY, lower_bound_s=6.0))
     code = next(c for c in _skill_snippets().values() if "tail(10)" in c)
     shown = _run_snippet(code, tmp_path).stdout
     assert re.search(r"\b01\b", shown) and "1234e56" in shown, shown  # not 1 / 1.234e+59
+
+
+# ------------------------------------------- C-19: a verdict belongs to one trajectory
+
+
+def test_trajectory_path_is_a_required_argument():
+    with pytest.raises(TypeError):
+        results.make_row("m", "a", compute_s=1.0, seed=1, commit="c", makespan_s=5.0)
+
+
+def test_trajectory_path_must_be_an_existing_file(tmp_path):
+    with pytest.raises(ValueError, match="not a file"):
+        _row(trajectory_path=tmp_path / "nope.csv")
+
+
+def test_the_real_validators_files_bind_to_the_sample_trajectory():
+    r = mk("sample", "ref", compute_s=0.1, seed=0, commit="c", summary_path=SAMPLE_SUMMARY)
+    assert r.passed is True
+
+
+def test_a_summary_of_another_trajectory_is_refused(tmp_path):
+    other = tmp_path / "trajectory.csv"
+    other.write_bytes(SAMPLE_TRAJ.read_bytes() + b"1,99.0,0,0,0,W\n")  # a different file
+    with pytest.raises(ValueError, match="sha256"):
+        mk("m", "a", compute_s=1.0, seed=1, commit="c", trajectory_path=other,
+           summary_path=SAMPLE_SUMMARY)
+    with pytest.raises(ValueError, match="sha256"):  # one changed byte is enough
+        flipped = tmp_path / "flipped.csv"
+        data = bytearray(SAMPLE_TRAJ.read_bytes())
+        data[-3] ^= 1
+        flipped.write_bytes(bytes(data))
+        mk("m", "a", compute_s=1.0, seed=1, commit="c", trajectory_path=flipped,
+           summary_path=SAMPLE_SUMMARY)
+
+
+def test_summary_must_be_named_summary_json(tmp_path):
+    d = tmp_path / "x"
+    d.mkdir()
+    for name in ("old_summary.json", "summary_PASS.json", "Summary.json"):
+        (d / name).write_bytes(_synthetic_summary(tmp_path, "PASS").read_bytes())
+        with pytest.raises(ValueError, match="summary.json"):
+            mk("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=d / name)
+
+
+@pytest.mark.parametrize("inputs", [None, "{}", '{"inputs": {}}',
+                                    '{"inputs": {"trajectory.csv": {}}}', "not json", "[]"])
+def test_missing_or_malformed_validation_inputs_is_refused(tmp_path, inputs):
+    s = _synthetic_summary(tmp_path, "PASS")
+    vi = s.with_name("validation_inputs.json")
+    if inputs is None:
+        vi.unlink()
+    else:
+        vi.write_text(inputs, encoding="utf-8")
+    with pytest.raises(ValueError):
+        mk("m", "a", compute_s=1.0, seed=1, commit="c", summary_path=s)
+
+
+def test_rows_without_a_validator_run_need_no_binding():
+    r = _row()  # prevalidate-only candidate: passed stays empty
+    assert r.passed is None and r.validator_status == ""
 
