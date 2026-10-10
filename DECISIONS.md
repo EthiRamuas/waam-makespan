@@ -56,6 +56,14 @@
 - 일시: 2026-10-10 13:5x | 등급: B | 결정: **a) `.gitattributes`에 `tests/fixtures/model01/config.yaml -text` 추가** | 상태: 완료
 - 결과: 커밋 213b23a. `git ls-files --eol`: `i/lf w/lf attr/-text`. 커밋된 바이트 md5(`git show HEAD:…`) = bf3b30c6e762bcc93ff44d8f80bcb46d (원본과 일치, 읽기 전용 확인). fixture 파일은 삭제·재체크아웃하지 않았다.
 
+### C-13 — writer 좌표 문자열 형식
+- 일시: 2026-10-10 14:0x | 등급: B | 결정: **a) 좌표는 `repr(float(np.float32(v)))`, 시간은 `repr(float)`** | 상태: 결정
+- 이유: 지금까지의 Validator 대조 테스트(수천 건)가 이 형식(`vref.write_csv`)으로 돌았다. 단 `vref.write_csv`는 Windows에서 CRLF로 쓰므로 writer는 LF로 쓰고, 테스트는 CRLF를 LF로 바꾼 뒤 바이트 일치를 확인한다.
+
+### C-14 — 작업 4 "1단계 종료 검증"의 대상
+- 일시: 2026-10-10 14:0x | 등급: B | 결정: **a) sample_job을 build_chain + writer로 재현해 `waam-validator run` 전체 검증** | 상태: 결정
+- 조건(사용자): (1) arc=0 `TimingParams`는 테스트 파일 안에서만 명시적으로 만들고 주석에 "레퍼런스 재현용, 제출 경로 아님"을 적는다. `src/`와 `from_config`의 아크 필수 규칙은 그대로 둔다. (2) 완료 기준은 writer가 쓴 CSV로 `waam-validator run` 전체 exit 0이다. reference CSV와의 바이트 일치는 요구하지 않는다.
+
 ### C-07 — docs/experiments.md는 사람이 작성
 - 일시: 2026-10-10 13:32 | 등급: C | 결정: **그대로 유지** | 상태: 결정
 
@@ -66,3 +74,10 @@
 ### C-06 — Lipschitz 여유 `max_step_mm=2.5` 유지 여부
 - 등급: B | 상태: **대기** (다음 구간으로 이월)
 - 내용: 근접 통과 오거절률은 실제 스케줄이 생긴 뒤 측정할 수 있다. 지금은 측정 불가.
+
+### C-15 — writer 게이트에 선후관계·아크 검사를 둘지
+- 등급: B | 상태: **대기** (작업 3 리뷰에서 발생, 다음 구간)
+- 문제 정의: 현재 writer 게이트는 Validator 의미(`check_all`)와 타임라인-체인 동일성만 본다. 아크 W와 국소 선후관계는 보지 않는다. 아크는 timing.py만 보장하고 `precedence.py`는 아직 없다.
+- 선택지: a) 3단계에서 `precedence.py`를 만든 뒤 writer 게이트에 연결 b) 스케줄러 쪽에서만 보장 c) 연결하지 않음
+- 권고(초안): a — 제출 경로의 마지막 게이트가 우리가 부과한 제약을 보지 않으면 "Validator만 통과하는 비물리 해"가 나갈 수 있다. 단 precedence.py 설계 이후에 정할 수 있으므로 지금은 결정하지 않는다.
+
