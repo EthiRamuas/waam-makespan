@@ -38,6 +38,7 @@ lower_bound_from_areas(areas_mm2: Sequence[float], *, bead_width_mm, deposition_
 lower_bound(stack: LayerStack, config) -> LowerBound      # slicing 이후의 얇은 래퍼, n_robots = len(config.robots) (L-3)
 ```
 
+- 래퍼의 `config`는 Validator config **또는** `.robots`(길이를 가진 시퀀스)와 `.process.bead_width_mm`, `.process.deposition_speed_mm_s`를 가진 객체이다 (L-5). 근거: Validator `config/models.py`의 `robots`는 정확히 3대만 받으므로 2대/4대 경로는 Validator config로 만들 수 없다(작업 6 확인).
 - 입력 검증: 면적은 유한하고 0 이상, 비드폭·속도·로봇 수는 양수. 위반은 `ValueError`. 면적 합이 0이면 하한이 0이 되어 ratio를 만들 수 없으므로 `ValueError`.
 - 반환의 `lower_bound_s`가 `results.make_row(lower_bound_s=...)`에 그대로 들어간다.
 - 위치: `src/waam/lower_bound.py` (CLAUDE.md 아키텍처에 이미 있음).
@@ -46,7 +47,7 @@ lower_bound(stack: LayerStack, config) -> LowerBound      # slicing 이후의 �
 
 이 하한은 **완전 채움 가정의 근사 정의**이고 Validator가 증명하는 값이 아니다.
 
-- Validator는 coverage ≥ 80%, overfill ≤ 30%, 전체 IoU ≥ 90%(layer IoU ≥ 80%, 실패 layer ≤ 5%)면 PASS한다. 따라서 형상을 일부러 덜 채우면 makespan이 이 "하한" 아래로 내려가 **ratio < 1이 가능하다.** CLAUDE.md의 "1.0은 물리적으로 불가능하다"는 *완전 채움*일 때만 참이다. 실제 여유 폭은 형상 판정식 확인 결과(C-24)로 갱신한다.
+- Validator의 전체 형상 기준 중 구속 조건은 전체 IoU ≥ 0.9다(C-24 확인). 덜 채우고 넘치지 않으면 IoU = coverage이므로 최소 채움 비율은 0.90이고, coverage ≥ 0.80은 구속하지 않는다. 따라서 형상을 덜 채우면 makespan이 이 하한 아래로 내려가 ratio < 1이 가능하다(면적 기준 이론상 약 0.9배, 이동·아크는 줄지 않으므로 실제 폭은 더 작다 — 가설, C-24). CLAUDE.md의 "1.0은 물리적으로 불가능하다"는 *완전 채움*일 때만 참이다.
 - 이 한계는 구현에서 숨기지 않는다: `ratio`는 정의 그대로 계산하고, 값이 1 미만이어도 clamp하거나 거부하지 않는다.
 - coverage를 낮추는 전략을 쓸지는 열린 전략 안건(C-24)이며 데드라인은 3단계 toolpath 설계 시작 전이다. 이 명세와 구현은 그 결정과 무관하다(ratio 정의 고정).
 
@@ -82,7 +83,7 @@ Validator의 `load_target_mesh` + `slice_target_layers`를 scratch 스크립트�
 4. **단위**: 반환값이 초이고 1 h = 3600 s 변환이 모델 05에서 맞음 (80,953.5 s ≠ 22.487 s).
 5. **하드코딩 금지 확인**: `src/waam/lower_bound.py`에 모델별 상수(0.08, 0.18 …)가 없음을 테스트가 grep으로 단언.
 6. **`results.make_row`와 연결**: ratio = makespan / lower_bound_s가 `ResultRow` 불변식을 만족. ratio < 1인 입력(예: makespan이 하한보다 작은 합성 값)도 거부 없이 기록된다 (L-1).
-7. **로봇 수 출처**: 2대/4대 config 변형에서 래퍼가 `len(config.robots)`를 쓴다.
+7. **로봇 수 출처**: 테스트에서 위 속성만 가진 대체 객체(예: `SimpleNamespace`)로 로봇 2대/4대를 만들어 래퍼가 `len(config.robots)`를 쓰는지 확인한다. 실제 Validator config(3대)로 한 번 더 확인한다.
 
 ## 7. 결정 (DECISIONS.md C-22)
 
@@ -90,6 +91,7 @@ Validator의 `load_target_mesh` + `slice_target_layers`를 scratch 스크립트�
 - **L-2** 순수 함수(`lower_bound_from_areas`)와 래퍼(`lower_bound`)로 분할한다.
 - **L-3** 로봇 수는 `len(config.robots)`에서 읽는다.
 - **L-4** 아크 하한은 toolpath 이후로 미룬다.
+- **L-5** (등급 A, 시그니처 불변·테스트 한정) 래퍼의 `config`는 Validator config 또는 `.robots`(길이를 가진 시퀀스)와 `.process.bead_width_mm`, `.process.deposition_speed_mm_s`를 가진 객체다. 오라클 7은 대체 객체(2대/4대) + 실제 Validator config(3대)로 한다. 근거: Validator `config/models.py`의 `robots`가 정확히 3대만 받는다 (작업 6 확인).
 - C-21(config·target sha 대조)은 run_all 설계 때 결정한다.
 
 ## 8. 완료 기준 / 중단 조건
@@ -114,5 +116,6 @@ Validator의 `load_target_mesh` + `slice_target_layers`를 scratch 스크립트�
 | **의존** | 없음 | **slicing 구현에 의존** | — | 없음 |
 
 - 판정: ①의 "명세 확정"은 충족했고, **사람의 ★4 승인만 남았다.** 승인 후에는 4조건 모두 ✓이다.
+- ② 재판정(L-5 반영 후): **여전히 ✓.** 오라클 7은 이전에 Validator config로는 만들 수 없는 입력(2대/4대)을 요구하는 오류였고, L-5로 구현 선택이 아닌 명세가 되어 남은 설계 결정이 없다.
 - 순서: 순수 함수는 의존이 없어 slicing보다 먼저 올릴 수 있다. 래퍼는 slicing 뒤에만 올릴 수 있다 (같은 야간 큐에 둘 다 올리면 slicing → 래퍼 순서).
 - 구현 시간은 **미측정**이다 (1단계 속도를 환산하지 않는다).

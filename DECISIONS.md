@@ -92,6 +92,7 @@
 - L-4) **아크 하한은 toolpath 이후로 미룬다.**
 - C-21(config·target sha 대조)은 run_all 설계 때 결정한다. 변경 없음.
 - 보충 측정(읽기 전용, 05 재측정): 하한 80,953.5032 s (22.4871 h), Validator 함수 결과이며 우리 구현이 아니다.
+- L-5) (2026-10-10 15:48, 등급 A: 시그니처 불변·테스트 한정) 래퍼의 `config`는 Validator config **또는** `.robots`(길이를 가진 시퀀스)와 `.process.bead_width_mm`, `.process.deposition_speed_mm_s`를 가진 객체다. 오라클 7은 `SimpleNamespace` 등 대체 객체로 2대/4대를 만들어 `len(config.robots)` 사용을 확인하고, 실제 Validator config(3대)로 한 번 더 확인한다. 근거: Validator `config/models.py`의 `robots`가 정확히 3대만 받는다(작업 6 확인). 야간 큐 자격 ②는 여전히 ✓.
 
 ### C-23 — 2단계 범위 = B′ (단계 재정의)
 - 일시: 2026-10-10 15:32 (사용자 결정, 앱 채팅에서 강의자료·녹취를 근거로 검토) | 등급: B | 상태: **결정**
