@@ -100,3 +100,17 @@
 - 선택지: a) 3단계에서 `precedence.py`를 만든 뒤 writer 게이트에 연결 b) 스케줄러 쪽에서만 보장 c) 연결하지 않음
 - 권고(초안): a — 제출 경로의 마지막 게이트가 우리가 부과한 제약을 보지 않으면 "Validator만 통과하는 비물리 해"가 나갈 수 있다. 단 precedence.py 설계 이후에 정할 수 있으므로 지금은 결정하지 않는다.
 
+### C-19 — results.csv의 passed가 거짓으로 채워질 수 있는 경로 (작업 5 리뷰 1·6번)
+- 등급: B | 상태: **대기**
+- 문제 정의: `make_row(summary_path=...)`는 그 summary.json이 *이번* trajectory.csv의 결과인지 확인하지 못한다. 이전 run·다른 모델·다른 config의 PASS가 새 해에 붙을 수 있다("돌리지 않은 것을 돌렸다고 쓰지 않는다" 위반 경로). 호출자(run_all)가 아직 없어 실제 피해는 없다(추정).
+- 충족 조건: 기록된 PASS가 해당 trajectory.csv를 실제로 검증한 결과임이 코드로 강제된다.
+- 선택지: a) `make_row`에 `trajectory_path`를 필수 인자로 추가하고 summary와 같은 폴더의 `validation_inputs.json`의 `trajectory.csv` sha256과 대조(다르면 raise). 필요하면 config·target sha256도 대조  b) 현행 유지 + docstring 경고만  c) ERROR(error.json)를 별도 경로로 받는 정책까지 함께 정함
+- 권고(초안): a — 인터페이스(C-17로 승인된 시그니처)가 바뀌므로 승인이 필요하다. ERROR 처리(c)는 호출자가 생길 때 정해도 된다.
+- 현재 상태: 코드는 ERROR 등 PASS/FAIL이 아닌 status를 거부한다. docstring에 한계를 적었다.
+
+### C-20 — waam-status 한 줄 명령 / results.csv 줄바꿈 (작업 5 리뷰 3·4·9번)
+- 등급: B | 상태: **대기** (`.claude/skills/*/SKILL.md`와 `docs/operations.md`, `.gitattributes`를 건드려야 해서 임의로 하지 않음)
+- 문제 정의: (1) `waam-status`의 모델별 최고 기록 한 줄이 PASS 행의 ratio가 비어 있으면 `idxmin ... all NA`로 죽고 "(집계할 기록 없음)"이라고 거짓으로 출력한다. `lower_bound.py`가 없는 지금 첫 Validator 실행 행은 ratio가 비어 있을 가능성이 높다(실측: 합성 행으로 재현, 테스트가 xfail로 고정). (2) autocrlf=true 환경에서 results.csv를 커밋·체크아웃하면 CRLF가 되어 append가 영구 거부된다(리뷰어 실측). (3) 한 줄 출력에서 model "01"이 정수 1, 7자리 hex 커밋이 가끔 float로 표시된다.
+- 선택지: a) 한 줄을 `d=d[(d.passed==True)&d.ratio.notna()]`로 바꾸고 `pd.read_csv(..., dtype={'model':str,'algo':str,'commit':str})`을 쓴다(operations.md §2-4와 SKILL.md 둘 다), `.gitattributes`에 `experiments/results.csv text eol=lf` 추가  b) 한 줄만 고치고 줄바꿈은 나중에  c) 그대로 두고 lower_bound.py 이후로 미룸
+- 권고(초안): a — 세 항목 모두 작고 되돌림이 쉽다. 테스트(`test_best_per_model_survives_a_pass_row_without_ratio`)는 xfail(strict)이라 수정하면 바로 통과로 바뀌며 xfail 표시를 지워야 한다.
+
