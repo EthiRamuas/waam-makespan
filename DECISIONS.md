@@ -84,13 +84,22 @@
 - 읽기 전용 확인(2026-10-10, 수정 없음): 모델 01~06 `target.stl`은 trimesh 기본 처리(정점 병합) 후 **6개 모두 watertight, winding 일치.** 원본 그대로는 모두 False(STL이 면마다 정점을 따로 저장). zmax = 12, 16, 12, 100, 700, 102 mm → 층 수 ceil(zmax/2) = 6, 8, 6, 50, 350, 51로 spec 표와 같다.
 
 ### C-22 — lower_bound 명세 결정 (docs/specs/lower_bound.md)
-- 일시: 2026-10-10 15:0x | 등급: B | 상태: 결정 (명세 확정, ★4 승인 대기)
-- L-1) **정의 그대로 구현한다.** 한계(완전 채움 가정, coverage 80%면 PASS하므로 ratio<1 가능)를 명세 §4와 보고서 항목에 명시한다. coverage 활용은 **별도 전략 결정으로 남긴다.**
+- 일시: 2026-10-10 14:57 (커밋 8b51481) | 등급: B | 상태: 결정 (명세 확정, ★4 승인 대기)
+- L-1) **정의 그대로 구현한다.** 한계(완전 채움 가정, 형상 기준을 만족하는 범위에서 덜 채우면 ratio<1 가능)를 명세 §4와 보고서 항목에 명시한다. coverage 활용은 **별도 전략 결정(C-24)으로 남긴다.**
+- 정정(2026-10-10, C-24 "확인 결과"): 이 결정을 적을 때의 "coverage 80%면 PASS"는 판정식 확인 전의 표현이었다. 실제로 최소 채움 비율을 정하는 것은 전체 IoU 0.9다(coverage 0.8은 구속하지 않는다).
 - L-2) **순수 함수(`lower_bound_from_areas`)와 래퍼(`lower_bound`)로 분할.**
 - L-3) **로봇 수는 `len(config.robots)`에서 읽는다.**
 - L-4) **아크 하한은 toolpath 이후로 미룬다.**
 - C-21(config·target sha 대조)은 run_all 설계 때 결정한다. 변경 없음.
 - 보충 측정(읽기 전용, 05 재측정): 하한 80,953.5032 s (22.4871 h), Validator 함수 결과이며 우리 구현이 아니다.
+
+### C-23 — 2단계 범위 = B′ (단계 재정의)
+- 일시: 2026-10-10 15:32 (사용자 결정, 앱 채팅에서 강의자료·녹취를 근거로 검토) | 등급: B | 상태: **결정**
+- **2단계:** slicing → lower_bound(야간) → 안전망 탐침(모델 03, `experiments/`, `src/` 아님) + 형상 판정식 확인 + 해칭 간격 스윕. 종료 기준: 실제 config 경로로 Validator PASS 1회 + coverage 안건(C-24)의 실측 근거.
+- **3단계** (목표: 중간평가 10/20(화) 전, 중간평가는 진행 상황만 봄): toolpath v0 → baseline_sector(3대, 섹터 전용, 층 동기화) → run_all(C-21 결정). 종료 기준: 공개 6개 모델 전부 PASS + results.csv에 ratio.
+- **4단계** (9주차 이후): 층 동기화 제거·파이프라이닝 → precedence.py + C-15 → Local Search / SA / GA 등 → 비공개 모델 일반화 시험.
+- 근거(강의자료): Validator 미통과는 Fail로 점수 제외 · 평가자 재현 기준 · 평가 = makespan + 계산 시간(학습 제외) + 일반화(공개 6 + 비공개 N) · 상용 SW 교차 검증 · 9주차 이후 강의 순서(Greedy+LS → SA → GA → NCO).
+- 이전 단계 정의(`docs/operations.md` §6-3: 2단계 lower_bound·runner·tests / 3단계 slicing·toolpath·baseline / 4단계 설계)와 달라졌다. 충돌하는 문서 수정은 이번 작업의 범위가 아니며 이 기록이 현재 기준이다.
 
 ### C-07 — docs/experiments.md는 사람이 작성
 - 일시: 2026-10-10 13:32 | 등급: C | 결정: **그대로 유지** | 상태: 결정
@@ -104,7 +113,8 @@
 - 내용: 근접 통과 오거절률은 실제 스케줄이 생긴 뒤 측정할 수 있다. 지금은 측정 불가.
 
 ### C-15 — writer 게이트에 선후관계·아크 검사를 둘지
-- 등급: B | 상태: **대기** (작업 3 리뷰에서 발생, 다음 구간)
+- 등급: B | 상태: **대기 유지** (작업 3 리뷰에서 발생) | **데드라인: 4단계 첫머리, 층 동기화 제거 직전** (2026-10-10 갱신, C-23)
+- 갱신 이유: 3단계 `baseline_sector`는 층 동기화(층 k의 모든 D가 끝난 뒤 층 k+1의 D 시작)로 국소 선후관계를 구조적으로 보장한다. 따라서 3단계에서는 writer 게이트에 선후관계 검사가 없어도 위반이 나갈 수 없다. 이 동기화 불변식을 테스트로 단언하는 것을 `baseline_sector`의 완료 기준에 넣을 예정이다(아직 구현·명세 없음). 층 동기화를 제거하는 순간부터 구조적 보장이 사라지므로 그 직전에 결정해야 한다.
 - 문제 정의: 현재 writer 게이트는 Validator 의미(`check_all`)와 타임라인-체인 동일성만 본다. 아크 W와 국소 선후관계는 보지 않는다. 아크는 timing.py만 보장하고 `precedence.py`는 아직 없다.
 - 선택지: a) 3단계에서 `precedence.py`를 만든 뒤 writer 게이트에 연결 b) 스케줄러 쪽에서만 보장 c) 연결하지 않음
 - 권고(초안): a — 제출 경로의 마지막 게이트가 우리가 부과한 제약을 보지 않으면 "Validator만 통과하는 비물리 해"가 나갈 수 있다. 단 precedence.py 설계 이후에 정할 수 있으므로 지금은 결정하지 않는다.
@@ -128,3 +138,49 @@
 - 문제 정의: C-19는 summary.json이 *이 trajectory.csv*의 결과임을 보장하지만, 그 Validator 실행이 *공식 config.yaml·target.stl*(모델 원본)로 돌았는지는 보장하지 않는다. `validation_inputs.json`에 두 파일의 sha256이 기록돼 있다(실측: sample_job fixture).
 - 선택지(초안): a) run_all이 모델 원본의 sha256을 알고 있다가 `make_row`에서 대조 b) run_all이 job 디렉터리를 만들 때 원본을 그대로 복사했음을 보증하고 대조는 생략 c) 대조하지 않음
 - 고려할 점: 원본 sha는 모델별 `target.stl`만 다르고 config.yaml은 6개 모두 같다(`bf3b30c6…`). 모델 목록을 코드에 박지 않고 어떻게 알려 줄지가 설계 항목이다.
+
+### C-24 — coverage 활용 전략
+- 등급: B | 상태: **대기** (사용자 결정 전까지 어떤 코드도 이 안건을 전제로 하지 않는다)
+- 문제 정의: 해칭 간격·채움 목표를 완전 채움 기준으로 둘지, Validator 형상 기준의 여유를 makespan 단축에 쓸지
+- 충족 조건: Validator PASS + 상용 SW 교차 검증에서 형상 성립 + 보고서의 ratio 해석이 정직
+- 선택지: a) 완전 채움 고정(간격 ≤ 비드폭)  b) 채움 목표를 탐색 변수로 두고 안전 마진(IoU 목표는 실측 후) + 완전 채움 결과 병기  c) 형상 기준 경계까지 적극 활용
+- 권고: **보류** — 아래 "확인 결과"와 안전망 탐침의 간격 스윕 실측 후 사용자가 결정
+- 되돌림 비용: toolpath 설계 전 낮음 / 4단계 탐색 후 높음
+- 결정 책임자: 사용자 | 데드라인: 3단계 toolpath 설계(plan) 시작 전 | 영향: toolpath, baseline_sector, 보고서
+- 메모: `docs/specs/lower_bound.md` §4의 "기본 방침상 취하지 않는다"는 전제가 아니다(사용자 지시, 문구 삭제함).
+
+**확인 결과** (2026-10-10, `C:\Github\WAAM_Validator` 소스 읽기만, 수정·실행 없음. 식에서 바로 나오는 것은 "확인", 추론은 "가설")
+
+① 판정식과 등호 — 확인. `shape/metrics.py` (층별 → 전체)
+- 층별 `:74` `coverage = _unit_interval(intersection_area / target_area)`, `:76` `overfill_ratio = overfill_area / target_area`, `:60` `union_area = target_area + deposited_area - intersection_area`, `:77-79` `iou = _unit_interval(intersection_area / union_area if union_area > epsilon else 1.0)`, `:80` `passed = iou >= config.shape_validation.minimum_layer_iou`
+- 전체는 층 두께를 곱해 합한 체적 가중: `:102-106` `totals["target"] += target_area * height` 등, `:116` `coverage = _unit_interval(totals["intersection"] / totals["target"])`, `:118` `overfill_ratio = totals["over"] / totals["target"]`, `:119-120` `union_volume = totals["target"] + totals["deposited"] - totals["intersection"]` / `iou = _unit_interval(totals["intersection"] / union_volume if union_volume > 0 else 1.0)`, `:121` `failed_ratio = _unit_interval(failed_layers / evaluated_layers if evaluated_layers else 0.0)`
+- PASS `:126-131`: `coverage >= config.shape_validation.minimum_overall_coverage and overfill_ratio <= config.shape_validation.maximum_overall_overfill_ratio and iou >= config.shape_validation.minimum_overall_iou and failed_ratio <= config.shape_validation.maximum_failed_layer_ratio` → **경계값은 통과(≥, ≤)**.
+- 최종 status는 `pipeline.py:144` `if shape.coverage < thresholds.minimum_overall_coverage:`, `:149` `if shape.overfill_ratio > thresholds.maximum_overall_overfill_ratio:`, `:154` `if shape.iou < thresholds.minimum_overall_iou:`, `:158` `if shape.failed_layer_ratio > thresholds.maximum_failed_layer_ratio:`로 실패 사유를 만들고 `:368` `status = "PASS" if not failure_reasons else "FAIL"`. metrics.py의 PASS 식과 정확히 서로 보완 관계이며 정의가 다르지 않다(확인, 중단 조건 해당 없음).
+- 임계값(공개 6개 config 동일, md5 `bf3b30c6…`): `minimum_overall_coverage: 0.80`, `maximum_overall_overfill_ratio: 0.30`, `minimum_overall_iou: 0.9`, `minimum_layer_iou: 0.8`, `maximum_failed_layer_ratio: 0.05`, `area_epsilon_mm2: 1.0e-06`.
+- 실패 층: `:53` `if target_area <= epsilon and deposited_area <= epsilon:`는 평가에서 제외(`continue`). `:61-66` target이 비었는데 deposited가 있으면 `passed = False`, `:67-72` `elif deposited_area <= epsilon:` target은 있는데 안 쌓였으면 `coverage = 0.0 … iou = 0.0 … passed = False`. `:81-82` `evaluated_layers += 1` / `failed_layers += int(not passed)`.
+
+② D 선분 buffer — 확인. `shape/deposition.py`
+- `:28` `radius = config.process.bead_width_mm / 2.0`
+- `:50-57` `line.buffer(radius, quad_segs=config.shape_validation.polygon_buffer_resolution, cap_style="round", join_style="round",)` → 선분 한 개가 만드는 폭은 `bead_width`(반지름 = bead_width/2), 끝은 둥근 캡. `polygon_buffer_resolution`은 config에서 8.
+
+③ z → layer 배정 — 확인. `shape/deposition.py:47-48` `representative_z = float((start[2] + end[2]) / 2.0)` / `layer_index = determine_layer_index(representative_z, config)`. `shape/layer_index.py:16-19` (center) `raw_index = (representative_z_mm - process.build_plane_z_mm - process.layer_height_mm / 2.0) / process.layer_height_mm` … `layer_index = round(raw_index)`, `:21` `if layer_index < 0:` 오류, `:23-24` `deviation = abs(representative_z_mm - expected_z)` / `if deviation > config.validation.layer_z_tolerance_mm:` 오류. 평가 층 집합은 `shape/target.py:273-274` `target_count = max(0, math.ceil(target_height / config.process.layer_height_mm))` / `return sorted(set(range(target_count)) | set(deposited_layers))` — 대상 층 전부 + target 범위 밖에 쌓인 층.
+
+④ 덜 채우고 바깥으로 안 넘칠 때 — 확인(식에서 바로)
+- deposited ⊆ target이면 intersection = deposited, `union = target + deposited − intersection = target` (`metrics.py:60`, `:119`) → **`iou = intersection/target = coverage`가 성립한다.**
+- 일반식: deposited = intersection + overfill이므로 `iou = coverage / (1 + overfill_ratio)`. 전체 기준을 동시에 만족하려면 `coverage ≥ 0.9 × (1 + overfill_ratio) ≥ 0.9`.
+- 따라서 **전체 형상 기준이 허용하는 최소 채움 비율은 0.90(overfill 0일 때)이다.** `minimum_overall_coverage: 0.80`은 `minimum_overall_iou: 0.9`에 가려 **구속하지 않는다**(CLAUDE.md의 "Coverage ≥80%"는 틀린 값이 아니라 비구속 조건). 층별 기준(각 층 iou ≥ 0.8, 실패 층 ≤ 5%)은 전체 체적 가중 IoU 0.9를 낮추지 못한다 — 전체 조건이 별도로 걸리므로(확인).
+- 이 값은 면적(체적) 기준이다. 시간으로는 이동·아크가 채움에 비례해 줄지 않는다.
+
+가설 (실측 전; 안전망 탐침과 간격 스윕으로 검증):
+1. 적층 시간이 채움 면적에 비례한다고 보면 이론상 ratio는 완전 채움 하한의 약 0.9배까지 내려갈 수 있다. 이동·대기·아크는 줄지 않으므로 실제 이득은 더 작을 것이다.
+2. 둥근 캡·폭 `bead_width` 비드는 뾰족한 모서리를 채우지 못해 완전 채움 toolpath도 coverage가 1보다 작을 수 있다(그 폭은 실측 필요). 최소 0.90에 가깝게 쓰면 모서리 손실 때문에 FAIL할 수 있으므로 안전 마진이 필요하다.
+3. 한 층을 통째로 생략하는 방법은 실패 층 ≤ 5%로 허용되지만, 생략 층의 체적이 전체의 약 10%(= 1 − 0.9)를 넘으면 전체 IoU에서 막힌다(균일 단면 가정).
+4. 상용 SW 교차 검증에서 이 정도로 덜 채운 형상이 성립하는지는 이 확인의 범위 밖이다 — 미확인.
+
+### C-25 — 비공개 모델용 메시 repair / fallback 정책
+- 등급: B | 상태: **대기** | 데드라인: 15주차 최종 평가 전 (4단계 일반화 항목)
+- 현재: C-18 결정 3(`TARGET_NOT_WATERTIGHT`로 raise)을 공개 6개와 야간 구현에서 유지한다.
+- 문제 정의: 비공개 모델에 비 watertight 메시가 오면 raise = 그 모델 Fail(점수 제외).
+- 선택지 초안: a) 현행 raise  b) trimesh repair 후 면적 오라클로 검증  c) Validator의 동작을 확인하고 그에 맞춤(`shape/target.py`의 `load_target_mesh`는 `attempt_target_repair`가 켜져 있으면 `fill_holes`를 시도한다 — 확인은 읽기만 한 `slicing` 명세 작업에서 함)
+- 권고: 4단계 일반화 항목 착수 때 정한다.
+

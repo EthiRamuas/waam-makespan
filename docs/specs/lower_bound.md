@@ -46,12 +46,12 @@ lower_bound(stack: LayerStack, config) -> LowerBound      # slicing 이후의 �
 
 이 하한은 **완전 채움 가정의 근사 정의**이고 Validator가 증명하는 값이 아니다.
 
-- Validator는 coverage ≥ 80%, overfill ≤ 30%, 전체 IoU ≥ 90%(layer IoU ≥ 80%, 실패 layer ≤ 5%)면 PASS한다. 따라서 형상을 일부러 덜 채우면 makespan이 이 "하한" 아래로 내려가 **ratio < 1이 가능하다.** CLAUDE.md의 "1.0은 물리적으로 불가능하다"는 *완전 채움*일 때만 참이다.
+- Validator는 coverage ≥ 80%, overfill ≤ 30%, 전체 IoU ≥ 90%(layer IoU ≥ 80%, 실패 layer ≤ 5%)면 PASS한다. 따라서 형상을 일부러 덜 채우면 makespan이 이 "하한" 아래로 내려가 **ratio < 1이 가능하다.** CLAUDE.md의 "1.0은 물리적으로 불가능하다"는 *완전 채움*일 때만 참이다. 실제 여유 폭은 형상 판정식 확인 결과(C-24)로 갱신한다.
 - 이 한계는 구현에서 숨기지 않는다: `ratio`는 정의 그대로 계산하고, 값이 1 미만이어도 clamp하거나 거부하지 않는다.
-- coverage를 낮추는 전략을 쓸지는 **별도 전략 결정**이다 (이 명세의 범위 밖). 아크 시간을 생략하지 않는 것과 같은 이유로, 물리적으로 의미가 없는 이득은 기본 방침상 취하지 않지만 결정은 사람이 한다.
+- coverage를 낮추는 전략을 쓸지는 열린 전략 안건(C-24)이며 데드라인은 3단계 toolpath 설계 시작 전이다. 이 명세와 구현은 그 결정과 무관하다(ratio 정의 고정).
 
 **보고서에 쓸 항목 (문구 초안)**
-> ratio = makespan ÷ 이론 하한. 하한은 완전 채움을 가정한 근사(Σ단면적 ÷ 비드폭 ÷ 적층속도 ÷ 로봇 수)이며 아크 시간을 포함하지 않는다. Validator는 coverage 80% 이상이면 PASS하므로 이 하한은 증명된 하한이 아니다. ratio가 1 미만이면 형상 충실도(coverage)를 먼저 확인한다.
+> ratio = makespan ÷ 이론 하한. 하한은 완전 채움을 가정한 근사(Σ단면적 ÷ 비드폭 ÷ 적층속도 ÷ 로봇 수)이며 아크 시간을 포함하지 않는다. Validator의 형상 기준(coverage·overfill·IoU)을 만족하는 범위에서 덜 채우면 makespan이 이 하한보다 작아질 수 있으므로 이 하한은 증명된 하한이 아니다. ratio가 1 미만이면 형상 충실도(coverage)를 먼저 확인한다.
 
 ## 5. 측정 (2026-10-10, 읽기 전용 · 실측)
 
@@ -86,7 +86,7 @@ Validator의 `load_target_mesh` + `slice_target_layers`를 scratch 스크립트�
 
 ## 7. 결정 (DECISIONS.md C-22)
 
-- **L-1** 정의 그대로 구현한다. 한계(완전 채움 가정, coverage 80%면 PASS하므로 ratio<1 가능)를 명세(§4)와 보고서 항목에 명시한다. coverage 활용은 별도 전략 결정으로 남긴다.
+- **L-1** 정의 그대로 구현한다. 한계(완전 채움 가정, coverage 80%면 PASS하므로 ratio<1 가능)를 명세(§4)와 보고서 항목에 명시한다. coverage 활용은 별도 전략 결정(C-24)으로 남긴다.
 - **L-2** 순수 함수(`lower_bound_from_areas`)와 래퍼(`lower_bound`)로 분할한다.
 - **L-3** 로봇 수는 `len(config.robots)`에서 읽는다.
 - **L-4** 아크 하한은 toolpath 이후로 미룬다.
