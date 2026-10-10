@@ -6,8 +6,9 @@ Definition (docs/spec.md section 6; unit: SECONDS)::
     deposition time   = centerline length / deposition speed
     lower bound       = deposition time / number of robots
 
-This module holds the pure function ``lower_bound_from_areas`` only: the layer areas come from
-the caller (slicing), and bead width, speed and robot count are arguments, never constants.
+``lower_bound_from_areas`` is the pure function: the layer areas, bead width, speed and robot count
+are arguments, never constants. ``lower_bound(stack, config)`` is the thin wrapper that reads them
+from a ``slicing.LayerStack`` and a config (``n_robots = len(config.robots)``).
 
 Limits (stated, not hidden)
 ---------------------------
@@ -26,8 +27,12 @@ import numbers
 import sys
 from collections.abc import Iterable, Mapping, Set
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from .slicing import LayerStack
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,3 +102,33 @@ def lower_bound_from_areas(areas_mm2: Iterable[float], *, bead_width_mm: float,
             raise ValueError(f"{name} is {v!r}: no lower bound (and no ratio) exists")
     return LowerBound(total_area_mm2=total, centerline_mm=centerline, deposition_s=deposition,
                       n_robots=n, lower_bound_s=bound)
+
+
+def lower_bound(stack: LayerStack, config: object) -> LowerBound:
+    """Lower bound in seconds for a sliced part (docs/specs/lower_bound.md section 3, L-3, L-5).
+
+    ``stack`` is a ``slicing.LayerStack`` (anything with ``.layers[*].area_mm2``). ``config`` is
+    the Validator config or any object with ``.robots`` (a sized sequence: ``n_robots`` is
+    ``len(config.robots)``), ``.process.bead_width_mm`` and ``.process.deposition_speed_mm_s``.
+    Nothing is clamped: ``ratio = makespan / lower_bound_s`` may be below 1 (see the module
+    docstring). Raises ``ValueError`` like ``lower_bound_from_areas``.
+    """
+    try:
+        areas = [layer.area_mm2 for layer in stack.layers]  # type: ignore[attr-defined]
+    except (AttributeError, TypeError) as exc:
+        raise ValueError(f"stack must have .layers[*].area_mm2: {exc}") from exc
+    robots = getattr(config, "robots", None)
+    if isinstance(robots, (str, bytes, Mapping)):
+        raise ValueError(f"config.robots must be a sequence of robots, got {type(robots).__name__}")
+    try:
+        n_robots = len(config.robots)  # type: ignore[attr-defined]
+        bead = config.process.bead_width_mm  # type: ignore[attr-defined]
+        speed = config.process.deposition_speed_mm_s  # type: ignore[attr-defined]
+    except (AttributeError, TypeError) as exc:
+        raise ValueError(
+            "config needs .robots (sized), .process.bead_width_mm, .process.deposition_speed_mm_s: "
+            f"{exc}"
+        ) from exc
+    return lower_bound_from_areas(
+        areas, bead_width_mm=bead, deposition_speed_mm_s=speed, n_robots=n_robots
+    )
