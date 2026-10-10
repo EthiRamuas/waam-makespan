@@ -2,9 +2,9 @@
 
 ## 현재 상태 (체크포인트 갱신)
 - 단계: **1단계 종료.** 2단계(B′, C-23) 진행: slicing → lower_bound(야간) → 안전망 탐침(모델 03, `experiments/`) + 형상 판정식 확인(완료, C-24 확인 결과) + 해칭 간격 스윕
-- 통과 테스트: 288 passed (Claude 실측, 10-10 14:53 전후, C-19 반영 후). 이후 docs만 수정
+- 통과 테스트: 394 passed (Claude 실측, 10-10 16:14, 작업 8 반영 후)
 - 막힌 곳: 없음. 결정 대기: C-06, C-15(데드라인: 4단계 첫머리), C-21(run_all 설계 때), C-24(coverage 활용, 데드라인: 3단계 toolpath 설계 시작 전), C-25(비공개 모델 메시 repair, 15주차 전)
-- 다음 작업(B′ 순서): ★4 승인(프롬프트 4) → 야간 큐: lower_bound 순수 함수 → slicing → lower_bound 래퍼 → 안전망 탐침(모델 03) + 해칭 간격 스윕 → (3단계) toolpath v0 → baseline_sector → run_all
+- 다음 작업(B′ 순서): 작업 9(읽기 전용 분석, .cache/waam/analysis/) → (18:40 이후) slicing → lower_bound 래퍼 → 안전망 탐침 + 해칭 간격 스윕 → (3단계) toolpath v0 → baseline_sector → run_all
 - 신호: 계속
 
 ## 시간 기록
@@ -40,6 +40,8 @@
 | 2026-10-10 14:57 | C-22 결정 반영(8b51481): lower_bound 명세 확정(한계 §4 명시), 모델 05 재측정(80,953.5032 s, Validator 함수 결과). 야간 큐 자격 재판정: 명세 ✓ / ★4 승인만 남음 |
 | 2026-10-10 15:32 | 사용자 결정: 2단계 범위 B′ (C-23) |
 | 2026-10-10 15:42 | 작업 6: C-23·C-24·C-25 기록, C-15 데드라인 갱신, lower_bound §4 문구 수정, Validator 형상 판정식 읽기 전용 확인 |
+| 2026-10-10 16:03 | ★3 승인(수정 3건 반영, auto). 작업 8(lower_bound_from_areas) 시작 |
+| 2026-10-10 16:14 | 작업 8 완료: lower_bound_from_areas + 테스트 106건, 리뷰(waam-reviewer 약 6분15초) 지적 8건 반영, 전체 pytest 394 passed(76.37 s). 체크포인트 커밋 직후 작업 9(.cache/waam/analysis) 착수 |
 
 ## 일정
 - 중간평가 10/20(화): 진행 상황 평가. 3단계(toolpath v0 → baseline_sector → run_all)의 목표 시점이다.
