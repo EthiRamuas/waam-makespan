@@ -1,10 +1,12 @@
 # PROGRESS.md
 
 ## 현재 상태 (체크포인트 갱신)
-- 단계: **1단계 종료.** 2단계(B′, C-23) 진행: slicing → lower_bound(야간) → 안전망 탐침(모델 03, `experiments/`) + 형상 판정식 확인(완료, C-24 확인 결과) + 해칭 간격 스윕
-- 통과 테스트: 477 passed (Claude 실측, 10-10 20:04, 야간 Q2 반영 후). 야간 큐(Q1·Q2·R1·R2) 전부 종료, 막힌 곳 없음, 신호: 계속
-- 막힌 곳: 없음. 결정 대기: C-06, C-15(데드라인: 4단계 첫머리), C-21(run_all 설계 때), C-24(coverage 활용, 데드라인: 3단계 toolpath 설계 시작 전), C-25(비공개 모델 메시 repair, 15주차 전)
-- 다음 작업(B′ 순서): 작업 9(읽기 전용 분석, .cache/waam/analysis/) → (18:40 이후) slicing → lower_bound 래퍼 → 안전망 탐침 + 해칭 간격 스윕 → (3단계) toolpath v0 → baseline_sector → run_all
+- 단계: **2단계 종료 (2026-10-11 18:29).** 3단계(toolpath v0 → baseline_sector → run_all) 진행 중. toolpath v0는 병합됨(29aae2a, 작업 16).
+- 탐침: 모델 **06**(03에서 변경). run `20261011-181549-06-cf0205b` 1회: Validator exit 0, summary.json status **PASS**, makespan_s 6174.838943466003 (`docs/measurements/probe_06_run1.md`). 기록 오류: 실행 직전 로그 파일을 레포 루트에 만들어 results.csv notes·probe.json이 git_dirty=true로 기록됨.
+- 통과 테스트: 556 passed (**사용자 보고**, Claude 실측 아님). Claude 실측 마지막 값은 523 passed (10-11 15:32, 작업 16).
+- 작업 19(probe_driver 명세 C-41 확정 17:52, `experiments/probe_06` 구현 18:03)·작업 20(예외 코드 수정 18:15, run 1 기록 18:16)은 아래 시간 기록 참조. 작업 21(3단계 설계 입력 측정, 읽기 전용)은 `.cache/waam/analysis3/`(미커밋)에 결과를 둠.
+- 막힌 곳: 없음. 결정 대기: C-06, C-15(데드라인: 4단계 첫머리), C-21(run_all 설계 때), C-24(coverage 활용), C-25(비공개 모델 메시 repair, 15주차 전), C-26 입력(부품 기준 배분 방침)
+- 다음 작업: baseline_sector → run_all (3단계). 중간평가 10/20.
 - 신호: 계속
 
 ## 시간 기록
@@ -184,3 +186,16 @@
 - toolpath 캐시·`_Ctx`의 cell 로봇 수 상한 **8**에는 근거가 없다: 도달 집합을 1바이트 비트마스크로 저장하려는 구현상 편의일 뿐이다.
 - 현황 조사 표: `docs/measurements/status_survey_2026-10-11.md`, 길이 분해: `docs/measurements/toolpath_v0_length.md`. assign·schedule·precedence 모듈과 `experiments/run_all.py`·`results.csv`는 없음.
 | 2026-10-11 15:57 | 작업 18: 탐침 구동 스크립트 명세 초안 `docs/specs/probe_driver.md` 작성(미확정, 구현 없음). 사전 실측(.cache, 레포 코드 변경 없음): 06 로봇 1 chain 끝 시각 6174.84 s, home 주차 prevalidate ok. 사람 결정 18건은 명세 §10 |
+
+
+## 작업 19·20·21 (2026-10-11)
+| 시각 | 사건 |
+|---|---|
+| 2026-10-11 15:57 | 작업 18: probe_driver 명세 초안(89d13ce) |
+| 2026-10-11 17:52 | 작업 19: C-41 probe_driver 명세 확정, D1~D18 결정 (dc81854) |
+| 2026-10-11 18:03 | 작업 19: `experiments/probe_06` 구동 스크립트와 단위 테스트 (8adfb02) |
+| 2026-10-11 18:15 | 작업 20: 예상 밖 예외는 코드 3, P18 비교 오류는 코드 4 (cf0205b) |
+| 2026-10-11 18:15 | probe_06 run 1: run `20261011-181549-06-cf0205b`, 06 PASS 1회 |
+| 2026-10-11 18:16 | 작업 20: run 1 측정 기록과 results.csv (7fe8320) |
+| 2026-10-11 18:29 | **2단계 종료** |
+| 2026-10-11 | 작업 21: 3단계 설계 입력 측정(읽기 전용), 결과 `.cache/waam/analysis3/` |
