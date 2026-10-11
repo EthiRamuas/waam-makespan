@@ -3,8 +3,8 @@
 ## 현재 상태 (체크포인트 갱신)
 - 단계: **2단계 종료 (2026-10-11 18:29).** 3단계(toolpath v0 → baseline_sector → run_all) 진행 중. toolpath v0는 병합됨(29aae2a, 작업 16).
 - 탐침: 모델 **06**(03에서 변경). run `20261011-181549-06-cf0205b` 1회: Validator exit 0, summary.json status **PASS**, makespan_s 6174.838943466003 (`docs/measurements/probe_06_run1.md`). 기록 오류: 실행 직전 로그 파일을 레포 루트에 만들어 results.csv notes·probe.json이 git_dirty=true로 기록됨.
-- 통과 테스트: 556 passed (**사용자 보고**, Claude 실측 아님). Claude 실측 마지막 값은 523 passed (10-11 15:32, 작업 16).
-- 작업 19(probe_driver 명세 C-41 확정 17:52, `experiments/probe_06` 구현 18:03)·작업 20(예외 코드 수정 18:15, run 1 기록 18:16)은 아래 시간 기록 참조. 작업 21(3단계 설계 입력 측정, 읽기 전용)은 `.cache/waam/analysis3/`(미커밋)에 결과를 둠.
+- 통과 테스트: **556 passed, skipped 없음, 141.64 s** (Claude 실측, 10-11 18:56~18:59, 작업 22, `python -m pytest -q`). 사용자 보고 556과 일치. 이전 Claude 실측은 523 passed (10-11 15:32, 작업 16).
+- 작업 19(probe_driver 명세 C-41 확정 17:52, `experiments/probe_06` 구현 18:03)·작업 20(예외 코드 수정 18:15, run 1 기록 18:16)은 아래 시간 기록 참조. 작업 21(3단계 설계 입력 측정, 읽기 전용)은 `.cache/waam/analysis3/`(미커밋)에 결과를 두고, 값은 `docs/measurements/design_inputs_3stage.md`에 보존(작업 22).
 - 막힌 곳: 없음. 결정 대기: C-06, C-15(데드라인: 4단계 첫머리), C-21(run_all 설계 때), C-24(coverage 활용), C-25(비공개 모델 메시 repair, 15주차 전), C-26 입력(부품 기준 배분 방침)
 - 다음 작업: baseline_sector → run_all (3단계). 중간평가 10/20.
 - 신호: 계속
@@ -198,4 +198,13 @@
 | 2026-10-11 18:15 | probe_06 run 1: run `20261011-181549-06-cf0205b`, 06 PASS 1회 |
 | 2026-10-11 18:16 | 작업 20: run 1 측정 기록과 results.csv (7fe8320) |
 | 2026-10-11 18:29 | **2단계 종료** |
-| 2026-10-11 | 작업 21: 3단계 설계 입력 측정(읽기 전용), 결과 `.cache/waam/analysis3/` |
+| 2026-10-11 | 작업 21: 3단계 설계 입력 측정(읽기 전용), 결과 `.cache/waam/analysis3/`, 문서 `docs/measurements/design_inputs_3stage.md` |
+| 2026-10-11 18:55 | 작업 22 시작 (git status --short 비어 있음) |
+| 2026-10-11 18:59 | 작업 22: pytest 556 passed 141.64 s (18:56:38~18:59:01) |
+
+## 열린 항목 (작업 22, 2026-10-11)
+- results.csv 첫 행 notes의 `dirty`는 로그 파일을 레포 루트에 만든 실수 때문이다. results.csv는 추가 전용이라 그대로 둠.
+- probe_06의 타임아웃·재시도 경로와 `error.json`·`failure_reasons` 문자열 형식은 실제 Validator로 검증하지 않았다(미검증).
+- 타임아웃 시 Windows에서 하위 프로세스가 남을 가능성이 있다(가설, 미측정).
+- Validator 최소 XY 마진 38.16 mm와 C-26의 +33.9 mm는 다른 숫자다. 기준 차이로 추정(미조정). 작업 22 (e) 측정: 06 로봇 1 중심선 꼭짓점 최대 XY 거리 1461.835 mm(Validator 실측 1461.84 mm와 일치, 1500 − 1461.835 = 38.165 mm).
+- 06 M1(중심선 1대 45.5%)과 폴리곤(0%) 불일치: 선분 단위 집계 때문으로 확인(세분 재계산 1대 0%, 3대 94.4%). 01~05의 같은 효과는 미측정. 상세 `docs/measurements/design_inputs_3stage.md`.
