@@ -163,3 +163,14 @@
 - stash 목록: `stash@{0}: night-2026-10-10b N1 중단: 미합격 — #1 …` (git stash list 실측). 복원: `git stash pop`(untracked 포함).
 - 사람이 직접 볼 지점 3개 (stash 코드 기준): ① `toolpath.py::_hatch_component`의 V6 연결·행 격자(#1·#2 실패 원인), ② `_medial_chains`의 Voronoi 필터(거리 창·폴리곤 안 조건)와 V12 가설값, ③ `_difference`의 GEOS 재시도(grid 1e-6). 추가: 명세 모순 후보 — double 모드 #5 "발자국 ⊂ P"는 ε_w만큼 삐져나가 달성 불가.
 - DECISIONS.md: 이번 세션에서 새로 보류한 결정 없음(C-40 미생성). 명세 모순은 사람 결정 필요로 위에 기록.
+
+## 작업 15 (2026-10-11, 사람 있음)
+| 시각 | 사건 |
+|---|---|
+| 2026-10-11 15:01 | 확인: stash@{0}에 `src/waam/toolpath.py`(748줄)·`tests/test_toolpath.py`(428줄) 있음 |
+| 15:0x | `nightly/2026-10-10b` → `session/2026-10-10` ff-only 병합 **b6920a3**, pytest 481 passed (94.5 s) |
+| 15:0x | `wip/toolpath-v0` 생성, stash pop, WIP 커밋 **63aff0f** |
+| 15:0x | 기준 재고정 C-40 + 명세 반영, 커밋 **af6f601**. `tests/test_toolpath.py` 39 passed (36.6 s) |
+| 15:0x | `waam-reviewer` 재실행 → **결과 없이 중간에 멈춤(killed)**, 지시대로 재호출 안 함. **리뷰 미통과** |
+| 15:14~15:2x | 측정: `docs/measurements/toolpath_v0.md` (6개 모델, 05 포함) |
+- 병합 조건 미충족(리뷰어 통과 없음) → `wip/toolpath-v0`는 `session/2026-10-10`에 **병합하지 않음**.
