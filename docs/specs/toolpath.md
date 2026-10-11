@@ -66,7 +66,7 @@
 | V18 | workspace 위반 | `ToolpathError("WORKSPACE_VIOLATION")` raise | PASS | 자동(Validator 규칙) | 발생 시 사람 |
 | V19 | 윤곽 방향 | 바깥 CCW, 구멍 CW | 없음 | 자동 | — |
 | V20 | 발자국 보관 | Pass 필드로 저장 | 메모리 | 자동 | 05 메모리 문제 시 |
-| V21 | 캐시 | 키 = STL sha256 + slicing 파라미터 + `ToolpathParams` 전체 + 로봇 base·reach + workspace + w + h + build_plane + tcp_z_reference + buffer_resolution + `TOOLPATH_VERSION` + 라이브러리 버전 + 소스 sha (C-27c 방식). 위치 `.cache/waam/toolpath/`, 쓰기 실패는 삼킴 | 계산 시간 | 자동 | — |
+| V21 | 캐시 | 키 = **입력 `LayerStack`의 층 인덱스·z·지오메트리 WKB 해시(STL sha256과 slicing 파라미터를 대신한다: 둘이 단면을 정하므로)** + `ToolpathParams` 전체 + 로봇 base·reach + workspace + w + h + build_plane + tcp_z_reference + buffer_resolution + area_epsilon + `TOOLPATH_VERSION` + 라이브러리 버전(shapely·GEOS·numpy) + 소스 sha (C-27c 방식; 코드 docstring과 같다). 로봇은 1~8대. 패스의 도달 집합은 1바이트 비트마스크로 저장. 위치 `.cache/waam/toolpath/`, 쓰기 실패는 삼킴 | 계산 시간 | 자동 | — |
 | V22 | wall_mode 폴백 | §6 | PASS | 고정(C-38) | 전환 시 보고 |
 
 반론 기록(값은 유지): V7은 06 벽 층(x폭 18 mm)에서 0° 해칭이 약 2 mm 조각으로 쪼개진다(프로토타입 614패스, V6 연결 후 수는 미측정). V16은 config의 `safe_travel_z_mm: 1000`이 Validator에서 쓰이지 않는 참조값이고, 1000 mm 리프트는 전환마다 약 13 s(산술)라 2h를 유지한다.

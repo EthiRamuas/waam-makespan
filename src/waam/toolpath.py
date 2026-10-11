@@ -32,6 +32,7 @@ import hashlib
 import math
 import os
 import uuid
+import warnings
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal
@@ -53,7 +54,7 @@ from shapely import (
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry.polygon import orient
 
-from waam.geometry import CellGeometry, reachable_mask
+from waam.geometry import CellGeometry, in_reach
 from waam.slicing import LayerStack
 
 TOOLPATH_VERSION = "toolpath-0"
@@ -66,6 +67,7 @@ _SOURCE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 DEFAULT_CACHE_DIR = Path(__file__).resolve().parents[2] / ".cache" / "waam" / "toolpath"
 
 _MAX_QUAD_SEGS = 4096
+_MAX_ROBOTS = 8  # the cache stores the reach set of a pass as one byte
 _MEDIAL_GRID_MM = 1e-6  # snapping grid for the medial edges (numerical, not a tuning knob)
 _ROBUST_GRID_MM = 1e-6  # grid of the GEOS retry in _difference (numerical, not a tuning knob)
 _KIND_CODES = {"contour": 0, "hole": 1, "hatch": 2, "medial": 3}
@@ -183,6 +185,9 @@ class _Ctx:
         tcp_ref = str(proc.tcp_z_reference)
         if tcp_ref not in ("center", "top"):
             raise ValueError(f"unsupported tcp_z_reference {tcp_ref!r}")
+        cell = CellGeometry.from_config(config)
+        if not 1 <= len(cell.base_xy) <= _MAX_ROBOTS:
+            raise ValueError(f"1..{_MAX_ROBOTS} robots supported, got {len(cell.base_xy)}")
         return cls(
             w=w,
             h=h,
@@ -190,7 +195,7 @@ class _Ctx:
             tcp_ref=tcp_ref,
             buffer_res=int(config.shape_validation.polygon_buffer_resolution),  # type: ignore[attr-defined]
             area_eps=float(config.shape_validation.area_epsilon_mm2),  # type: ignore[attr-defined]
-            cell=CellGeometry.from_config(config),
+            cell=cell,
         )
 
     def z_of(self, layer: int) -> float:
@@ -510,7 +515,14 @@ def _layer_raw(
                 try:
                     chains = _medial_chains(poly, zones, ctx, p)
                     raw.extend(("medial", c) for c in chains)
-                except Exception:
+                except Exception as exc:
+                    warnings.warn(
+                        f"layer {layer}: medial extraction failed ({type(exc).__name__}: "
+                        f"{str(exc).splitlines()[0] if str(exc) else ''}); wall zone handled "
+                        "by the double fallback",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
                     fallbacks += len(zones)
                     raw.extend(("contour", r) for r in _double_rings(zones, ctx, p))
             else:
@@ -575,8 +587,10 @@ def _finalise(
             f"layer {layer} {kind} pass: bead reaches {float(r.max()) + ctx.w / 2.0:.6g} mm "
             f"from the workspace centre, limit {cell.ws_radius_mm:.6g} mm",
         )
-    mask = reachable_mask(cell, arr).all(axis=0)
-    robots = frozenset(int(i) + 1 for i in np.flatnonzero(mask))
+    n_robots = len(cell.base_xy)
+    robots = frozenset(
+        rid for rid in range(1, n_robots + 1) if bool(np.all(in_reach(cell, rid, arr)))
+    )
     footprint = LineString(arr).buffer(
         ctx.w / 2.0, quad_segs=ctx.buffer_res, cap_style="round", join_style="round"
     )
@@ -680,7 +694,7 @@ def _cache_write(path: Path, tp: Toolpath) -> None:
         raise
 
 
-def _cache_read(path: Path, p: ToolpathParams) -> Toolpath | None:
+def _cache_read(path: Path, p: ToolpathParams, n_robots: int) -> Toolpath | None:
     try:
         with np.load(path, allow_pickle=False) as z:
             layer, zz, kind = z["layer"], z["z"], z["kind"]
@@ -701,7 +715,7 @@ def _cache_read(path: Path, p: ToolpathParams) -> Toolpath | None:
                     length=float(length[i]),
                     footprint=from_wkb(data[int(offsets[i]) : int(offsets[i + 1])]),
                     reachable_robots=frozenset(
-                        r + 1 for r in range(3) if int(reach[i]) >> r & 1
+                        r + 1 for r in range(n_robots) if int(reach[i]) >> r & 1
                     ),
                 )
             )
@@ -736,7 +750,7 @@ def generate(
     if use_cache:
         root = DEFAULT_CACHE_DIR if cache_dir is None else Path(cache_dir)
         cache_file = root / f"{_cache_key(stack, ctx, p)}.npz"
-        cached = _cache_read(cache_file, p)
+        cached = _cache_read(cache_file, p, len(ctx.cell.base_xy))
         if cached is not None:
             return cached
     result = _compute(stack, ctx, p)

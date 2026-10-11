@@ -335,6 +335,13 @@ def real_toolpaths():
     return get
 
 
+needs_validator_models = pytest.mark.skipif(
+    not (VALIDATOR_TESTS / "01" / "target.stl").is_file(),
+    reason=f"Validator model data not found under {VALIDATOR_TESTS}",
+)
+
+
+@needs_validator_models
 @pytest.mark.parametrize("name", ["01", "02", "03", "04", "06"])
 def test_13_real_model_shape(real_toolpaths, name):
     config, stack, tp = real_toolpaths(name)
@@ -346,6 +353,7 @@ def test_13_real_model_shape(real_toolpaths, name):
     assert metrics.overfill_ratio <= 0.30, metrics.overfill_ratio
 
 
+@needs_validator_models
 def test_14_model_03_overfill_bounded_by_wall_deficit(real_toolpaths):
     """Overfill limit derived from the wall thickness deficit (C-40).
 
@@ -423,7 +431,8 @@ def test_medial_exception_falls_back_per_zone(cfg, monkeypatch):
         raise RuntimeError("no medial axis")
 
     monkeypatch.setattr(toolpath, "_medial_chains", boom)
-    tp = generate(_stack(STRIP8), cfg, _params(cfg, wall_mode="medial"), use_cache=False)
+    with pytest.warns(RuntimeWarning, match=r"medial extraction failed \(RuntimeError: no medial axis\)"):
+        tp = generate(_stack(STRIP8), cfg, _params(cfg, wall_mode="medial"), use_cache=False)
     assert tp.medial_fallback_regions == 1
     passes = _layer(tp, 0)
     assert passes and all(q.kind == "contour" for q in passes)
@@ -474,3 +483,36 @@ def test_difference_retries_on_geos_topology_error(monkeypatch):
     result = toolpath._difference(box(0, 0, 10, 10), box(5, 0, 15, 10))
     assert calls, "the plain operation was not tried first"
     assert result.area == pytest.approx(50.0)
+
+
+def _with_robots(cfg, n):
+    base = list(cfg.robots)
+    robots = []
+    for i in range(n):
+        src = base[i % len(base)]
+        # spread the bases on the same circle so that some passes are reached by a subset
+        ang = 2.0 * math.pi * i / n
+        robots.append(
+            src.model_copy(
+                update={"id": i + 1, "base_xyz_mm": [1400.0 * math.cos(ang), 1400.0 * math.sin(ang), 0.0]}
+            )
+        )
+    return cfg.model_copy(update={"robots": robots})
+
+
+@pytest.mark.parametrize("n", [2, 4])
+def test_cache_hit_keeps_reach_sets_for_other_robot_counts(cfg, tmp_path, n):
+    config = _with_robots(cfg, n)
+    stack = _stack(SQUARE, RING)
+    fresh = generate(stack, config, use_cache=False)
+    generate(stack, config, cache_dir=tmp_path)
+    hit = generate(stack, config, cache_dir=tmp_path)
+    assert [q.reachable_robots for q in hit.passes] == [q.reachable_robots for q in fresh.passes]
+    assert _bytes(hit) == _bytes(fresh)
+    assert all(q.reachable_robots <= set(range(1, n + 1)) for q in hit.passes)
+    assert any(q.reachable_robots for q in hit.passes)
+
+
+def test_more_than_eight_robots_raise(cfg):
+    with pytest.raises(ValueError):
+        generate(_stack(SQUARE), _with_robots(cfg, 9), use_cache=False)
