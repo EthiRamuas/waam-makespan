@@ -3,10 +3,10 @@
 ## 현재 상태 (체크포인트 갱신)
 - 단계: **2단계 종료 (2026-10-11 18:29).** 3단계 진행 중. 순서는 C-45: baseline(S+P 포트폴리오, C-42) → run_all(C-21) → toolpath v0.1. toolpath v0는 병합됨(29aae2a, 작업 16).
 - 탐침: 모델 **06**(03에서 변경). run `20261011-181549-06-cf0205b` 1회: Validator exit 0, summary.json status **PASS**, makespan_s 6174.838943466003 (`docs/measurements/probe_06_run1.md`). 기록 오류: 실행 직전 로그 파일을 레포 루트에 만들어 results.csv notes·probe.json이 git_dirty=true로 기록됨.
-- 통과 테스트: **615 passed, skipped 없음, 522.55 s** (Claude 실측, 10-11 20:45~20:54, 작업 26a, `python -m pytest -q`, 느린 모델 포함). 이전 556에 신규 59개(빠른 47 + slow 12).
+- 통과 테스트: **649 passed, skipped 없음, 305.89 s** (Claude 실측, 10-11 21:47~21:53, 작업 26b, `python -m pytest -q`); `-m "not slow"` 635 passed 162.01 s. 이전 615(작업 26a)에 신규 34.
 - 작업 19(probe_driver 명세 C-41 확정 17:52, `experiments/probe_06` 구현 18:03)·작업 20(예외 코드 수정 18:15, run 1 기록 18:16)은 아래 시간 기록 참조. 작업 21(3단계 설계 입력 측정, 읽기 전용)은 `.cache/waam/analysis3/`(미커밋)에 결과를 두고, 값은 `docs/measurements/design_inputs_3stage.md`에 보존(작업 22).
 - 막힌 곳: 없음. 결정 대기: C-06, C-15(데드라인: 4단계 첫머리), C-21(run_all 설계 때), C-24(coverage 활용), C-25(비공개 모델 메시 repair, 15주차 전), C-26 입력(부품 기준 배분 방침)
-- 다음 작업: 작업 26b = baseline 구현 2부(`append_checked`·전략 S·P·포트폴리오, 명세 §5-4·B13~B25) → run_all(C-21, U-26 이월) → toolpath v0.1. 중간평가 10/20.
+- 다음 작업: **막힘** — 작업 26b 중단 조건(S·P 모두 prevalidate 불통과: 01~05). 결정 필요: 대기 위치 여유(U-14)·P 병렬 방식. 상세 `docs/measurements/baseline_26b.md`. 해소 뒤 6모델 재측정 → run_all(C-21) → toolpath v0.1. 중간평가 10/20.
 - 신호: 계속
 
 ## 시간 기록
@@ -221,3 +221,9 @@
 - 구현(명세 `docs/specs/baseline.md` C-46): `geometry.reachable_mask` n대 일반화(방안 1), `strategy.py`(Task·Cell), `sector.py`(B16, `phi_max`, `delta_max`), `pieces.py`(B3 `split_at_reach`, B17 `split_at_sectors`, `passes_to_tasks`), `standby.py`(B7 hull 방식, B9-a `park_candidates`). 테스트: T-B01(Cell)·02·03·07·15·16·18·19·20·29와 M6·M7′ 기준값 대조. 수정 금지 파일은 건드리지 않았다.
 - 재현 검증(실측): 6모델에서 `split_at_sectors(δ=0)`의 절단 패스 34/57/46/194/1404/58, 추가 조각 34/57/49/744/3112/298, 폴백 0, 조각 수 418/4362/202/1304/4520/400이 M6과 같고, `standby_rho`는 M7′ 표(18개)와 정확히 같다. 조정한 상수·분기 없음.
 - 열린 항목(명세가 침묵하거나 모호해 구현하지 않음): ① B18 폴백의 재배정(이웃 선택, 이후 B3 분할)은 구현하지 않고 `SectorSplit.unresolved`로 보고만 한다(공개 config에서는 0). ② 7-2 의사코드의 순서(섹터 분할 전에 `split_at_reach`를 할지)가 B3·B17·B18과 일관되지 않다 — M6 재현은 패스를 바로 섹터 분할하는 정의로 했다. ③ B3 분할점은 R + eps/2 위에 둔다(부동소수 반올림이 R + eps를 넘기는 것을 막기 위함; 04 패스 0에서 실제로 발생). ④ `split_at_reach`는 파이썬 루프라 05(1286개 분할 대상)에서 14.6 s(실측), 04 0.57 s. ⑤ home에 대한 hull 방식 `check_hold` 검사는 하지 않았다(미측정; 이번 구현에서 `check_hold`는 호출하지 않음).
+
+## 작업 26b — baseline 구현 2부 (2026-10-11, 중단)
+- 구현: C-47(B18′ 폴백·섹터 분할 먼저·분할점 R − `float32_buffer_mm`), `assign.py`(S·P 배정), `schedule.py`(`append_checked`, 직렬·이벤트 스케줄러), `baseline.py`(포트폴리오 B23). 수정 금지 파일은 건드리지 않았다.
+- 측정(`docs/measurements/baseline_26b.md`): 06에서만 S가 prevalidate를 통과(6174.838943466011 s, 탐침과 8e-12 s 차이). 01·02·03·04·05는 S·P 모두 실패(ARM_ENVELOPE 또는 P 교착) → `BaselineError`, **중단 조건 충족**. T-B27(6모델)은 만들지 않았다.
+- 진단(채택 아님): S 실패 구간의 실제 팔 여유가 0.13~0.88 mm(05 하나만 −0.615 mm)이고 상대는 대기 위치였다. 대기 위치를 1~2 mm 바깥으로 옮기면 01·02·03·04에서 S가 통과한다(05는 2 mm에서 통과, 848.9 s). P는 모든 변형에서 교착(실제 충돌, 여유 −6.9~−250 mm).
+- 열린 항목: ① U-14 대기 반경 여유가 prevalidate의 구간 하한 여유를 덮지 못한다(결정 필요) ② B7의 K_j는 B3 분할점을 포함해야 한다(05에서 ρ 558~559 → 560, 조각 꼭짓점 기준) ③ P: 인접 섹터 로봇이 처음부터 부딪힌다(04·02의 t=0 이동에서 −250 mm). B22(a)로는 복구되지 않는다 ④ S의 05 소요 848.9 s(진단 e=2). 인계 700회.

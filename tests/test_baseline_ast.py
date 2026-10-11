@@ -13,7 +13,7 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "waam"
 
 
 
-PART_MODULES = ["strategy.py", "sector.py", "pieces.py", "standby.py"]
+PART_MODULES = ["strategy.py", "sector.py", "pieces.py", "standby.py", "assign.py", "schedule.py", "baseline.py"]
 _ROBOTISH = ("robot", "rid", "base", "n_robots", "angle", "ang", "theta", "beta", "delta", "phi")
 _ANGLE_CONSTANTS = {60, 120, 180, 240, 300, 360}
 
