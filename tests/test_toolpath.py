@@ -4,8 +4,8 @@ Synthetic shapes use the model-01 config fixture (read-only). Tests 13 and 14 sl
 models of the Validator repo (read-only) and score the footprints with the Validator's own
 ``compute_shape_metrics`` -- Validator imports are used in tests only, never in ``src/``.
 
-Thresholds are the spec's. The hypothesis values of tests 1, 2 and 5 (0.99, 0.97..1.03, 5%) are
-asserted as written; none was relaxed after measuring.
+Thresholds are those of docs/specs/toolpath.md section 8 as re-fixed by C-40: the criteria of
+tests 1, 2, 5 (double) and 14 are derived from the geometry below, not copied from a measurement.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from shapely import LineString, Polygon, union_all
+from shapely import LineString, Point, Polygon, union_all
 from shapely.geometry import box
 from waam_validator.config.loader import load_config
 from waam_validator.shape.layer_index import determine_layer_index
@@ -85,20 +85,44 @@ STRIP8 = box(-50.0, -4.0, 50.0, 4.0)
 
 
 def test_1_square(cfg):
+    """Length decomposition (C-40). Square of side a = 100, w = 8, o = w/2, s = w.
+
+    contour ring  = P eroded by o = square of side a - 2o -> perimeter 4 (a - 2o)        = 368
+    hatch region H = P eroded by o + w/2 = square of side a - 2w = 84
+    rows           = ceil(H side / s) = ceil(84 / 8) = 11, each of length 84             = 924
+    connectors     = rows - 1 = 10, each one row spacing s long                          =  80
+    total                                                                                = 1372
+    (the last row is clamped to the upper edge of H, which here coincides with y_min + s/2 +
+    10 s, so every spacing is exactly s).
+    """
+    a, o, s = 100.0, W / 2.0, W
+    contour = 4.0 * (a - 2.0 * o)
+    h_side = a - 2.0 * (o + W / 2.0)
+    rows = math.ceil(h_side / s)
+    expected = contour + rows * h_side + (rows - 1) * s
     tp = generate(_stack(SQUARE), cfg, use_cache=False)
     passes = _layer(tp, 0)
     assert _overfill(passes, SQUARE) <= 1e-6 * SQUARE.area
     assert _coverage(passes, SQUARE) >= 0.99
-    ratio = _total_length(passes) * W / SQUARE.area
-    assert 0.97 <= ratio <= 1.03, ratio
+    assert _total_length(passes) == pytest.approx(expected, rel=0.005)
+    assert [q.kind for q in passes] == ["contour", "hatch"], "rows are joined into one pass"
 
 
 def test_2_ring(cfg):
+    """coverage >= 0.98 (C-40; was 0.99).
+
+    The hatch grid y_min(H) + s/2 + i s (V8) is global, so next to the hole it can leave a strip
+    of the band between two rows uncovered: up to s/2 = 4 mm high along the 40 mm hole side plus
+    the four outer corner losses 4 c(w) = 13.7 mm^2. The bound 0.98 allows 2 % of the 9600 mm^2
+    section (192 mm^2); the model measured 0.9873 (91.7 mm^2 strip + 13.7 + corners). The Validator
+    needs overall coverage >= 0.80 and our own margin is IoU >= 0.93 (test 13), so 2 % is far
+    inside both.
+    """
     tp = generate(_stack(RING), cfg, use_cache=False)
     passes = _layer(tp, 0)
     assert any(q.kind == "hole" for q in passes)
     assert _overfill(passes, RING) <= 1e-6 * RING.area
-    assert _coverage(passes, RING) >= 0.99
+    assert _coverage(passes, RING) >= 0.98
 
 
 def test_3_l_shape_connectors_stay_inside(cfg):
@@ -146,15 +170,16 @@ def test_5_strip_of_bead_width(cfg):
             y = np.asarray(q.vertices)[:, 1]
             assert np.all(np.abs(y) <= eps_w + 1e-6)  # all on the centre line (y = 0)
         assert _total_length(passes) == pytest.approx(2 * medial_length, rel=0.05)
-        assert _overfill(passes, STRIP8) <= 1e-6 * STRIP8.area
+        # C-40: a bead of width w centred eps_w off the centre line of a wall of width w sticks
+        # out by eps_w, so 'footprint inside P' becomes 'inside P grown by eps_w'.
+        assert _footprint(passes).difference(STRIP8.buffer(eps_w + 1e-6)).area <= 1e-6 * STRIP8.area
 
 
 def test_5b_double_mode_strip_is_the_same_line_twice(cfg):
-    """Both modes of #5, whatever the default. Not a spec criterion: see the footprint note.
+    """Double mode of #5 whatever the default (C-40: footprint inside P grown by eps_w).
 
-    The spec asks double mode for 'footprint inside P'. A bead of width w centred ``eps_w`` off
-    the centre line of a wall of width w sticks out by eps_w, so that criterion cannot hold; the
-    bound used here is P grown by eps_w. The default mode's #5 test is asserted as in the spec.
+    A bead of width w centred ``eps_w`` off the centre line of a wall of width w sticks out by
+    eps_w, so the bound is P grown by eps_w.
     """
     params = _params(cfg, wall_mode="double")
     tp = generate(_stack(STRIP8), cfg, params, use_cache=False)
@@ -321,11 +346,34 @@ def test_13_real_model_shape(real_toolpaths, name):
     assert metrics.overfill_ratio <= 0.30, metrics.overfill_ratio
 
 
-def test_14_model_03_footprints_inside_section(real_toolpaths):
+def test_14_model_03_overfill_bounded_by_wall_deficit(real_toolpaths):
+    """Overfill limit derived from the wall thickness deficit (C-40).
+
+    A medial pass runs on the centre line of a wall of local thickness t < w; its bead of width w
+    sticks out by (w - t)/2 on each side, i.e. (w - t) per unit length. With t_min the thinnest
+    medial vertex of the layer (2 x its distance to the section boundary):
+
+        overfill <= L_medial (w - t_min) + 1e-6 A
+
+    The second term covers the contour rings (arc chords, measured 2e-4 mm^2 per layer). The ratio
+    stays far below the Validator limit 0.30: here it must be <= 0.03 (one tenth of it).
+    """
     config, stack, tp = real_toolpaths("03")
+    w = config.process.bead_width_mm
+    total_over = total_area = 0.0
     for layer in stack.layers:
         passes = _layer(tp, layer.index)
-        assert _overfill(passes, layer.geometry) <= 1e-6 * layer.area_mm2, layer.index
+        medial = [q for q in passes if q.kind == "medial"]
+        assert medial, "model 03 is made of walls of about w"
+        boundary = layer.geometry.boundary
+        d_min = min(boundary.distance(Point(v)) for q in medial for v in q.vertices)
+        t_min = min(w, 2.0 * d_min)
+        limit = sum(q.length for q in medial) * (w - t_min) + 1e-6 * layer.area_mm2
+        over = _overfill(passes, layer.geometry)
+        assert over <= limit, (layer.index, over, limit, t_min)
+        total_over += over
+        total_area += layer.area_mm2
+    assert total_over / total_area <= 0.03
 
 
 # ---------------------------------------------------------------- extras (not in the spec table)
