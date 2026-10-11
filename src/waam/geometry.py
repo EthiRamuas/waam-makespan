@@ -105,9 +105,9 @@ def in_reach(g: CellGeometry, robot_id: int, xy: Any) -> Any:
 
 
 def reachable_mask(g: CellGeometry, xy: Any) -> np.ndarray:
-    """Which robots reach each point: ``(3,)`` for one point, ``(N,3)`` for a batch."""
+    """Which robots reach each point: ``(n,)`` for one point, ``(N,n)`` for a batch, n = number of bases."""
     (p,), single = _prep(xy)
-    mask = np.stack([in_reach(g, rid, p) for rid in (1, 2, 3)], axis=1)
+    mask = np.stack([in_reach(g, rid, p) for rid in range(1, len(g.base_xy) + 1)], axis=1)
     return mask[0] if single else mask
 
 
