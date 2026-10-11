@@ -1,6 +1,6 @@
 # baseline 명세 (v0 초안)
 
-상태: **초안, 미확정.** 구현 금지(사람 확정 전). 확정되면 C-xx로 기록한다. 근거: DECISIONS C-09·C-15·C-21·C-23·C-32·C-33·C-34·C-42~C-45, `docs/measurements/design_inputs_3stage.md`(M1~M8), `docs/specs/{probe_driver,toolpath}.md`, `src/waam/{timing,prevalidate,segment,writer,geometry,toolpath,results}.py`(읽기). 이 파일과 `docs/spec.md`가 어긋나면 `docs/spec.md`가 맞다.
+상태: **확정(C-46, 2026-10-11 20:08, 작업 25 전송 = ★4 승인).** 구현은 작업 26. 근거: DECISIONS C-09·C-15·C-21·C-23·C-32·C-33·C-34·C-42~C-46, `docs/measurements/design_inputs_3stage.md`(M1~M8, M7′), `docs/specs/{probe_driver,toolpath}.md`, `src/waam/{timing,prevalidate,segment,writer,geometry,toolpath,results}.py`(읽기). 이 파일과 `docs/spec.md`가 어긋나면 `docs/spec.md`가 맞다. 작업 25에서 6건 수정(§11)과 미결 항목 정리(§10)를 반영했다.
 표기: **확정**(코드·소스·실측·산술·기존 결정) / **가설** / **미측정** / **미확인**. 규칙 번호는 B1~B25, 미결 항목 번호는 U-1~U-28, 분류 R1~R6은 §10.
 목적: 3단계 비교군 baseline = **포트폴리오**(C-42). 전략 S(직렬 인계)와 전략 P(섹터 병렬)를 모두 구현하고, 모델마다 prevalidate를 통과한 체인의 makespan이 작은 쪽을 자동 선택한다. 새 탐색 알고리즘이 아니라 toolpath v0 패스 → 조각 → 로봇 배정 → 시간 진행 → `timing.build_chain` → `prevalidate` → `writer`를 잇는 구성이다. 4단계(층 동기화 제거·메타휴리스틱)의 비교군이다.
 
@@ -12,7 +12,7 @@
 - **직렬 하한의 산술 (C-42):** 팔 간 요구 거리 = 2 × `arm_envelope_radius_mm` + `arm_clearance_mm`(config 값 100 + 100 + 50 = 250 mm, 확정). 팔 간 Base→TCP 선분 거리 ≤ TCP 간 거리. D 꼭짓점 집합 지름이 250 mm보다 작으면(M5: 01 222.2, 06 216.9) 두 로봇이 동시에 부품 위 D·아크 W 위치에 있을 수 없다. 따라서 prevalidate를 통과한 체인의 makespan ≥ ΣD + Σ아크 = M8의 W (01: 1872.25 s, 06: 6149.0 s). 02·03(지름 343.6 / 350.0)은 이 산술이 적용되지 않고, M3 삼중 동시 통과 표본이 20000개 중 20 / 127이다(실측).
 - **섹터 도달 보장의 산술 (C-43):** 공개 config에서 섹터 안의 점은 자기 base 방향과 60° 이내, base 거리 1400 mm, 원점 반경 r ≤ 700 mm이므로 base까지 거리 ≤ sqrt(1400² + r² − 1400·r) ≤ 1212.4 mm < 1500. 소유 로봇이 항상 도달한다.
 - **M6 요약 (실측, 01~06, δ=0):** 섹터 경계에서 잘리는 패스 01 34 / 02 57 / 03 46 / 04 194 / 05 1404 / 06 58개, 추가 조각 34 / 57 / 49 / 744 / 3112 / 298개. 폴백 발동 조각 6개 모델 모두 0(δ 격자 전체에서도 0). 최대/최소 부하비 01 1.03 / 02 1.12 / 03 1.27 / 04 1.20 / 05 1.01 / 06 3.45. 숫자 전체는 `design_inputs_3stage.md` §10.
-- **M7 요약 (실측):** 자기 base 방향 반직선 위 최소 대기 반경 ρ는 모델·로봇마다 305~468 mm. config home 좌표는 6개 모델 모두 같은 검사를 통과했다(충돌 꼭짓점 0). 전체 숫자는 `design_inputs_3stage.md` §11, 직렬 하한은 §12.
+- **M7 요약 (실측):** 꼭짓점 방식(M7)의 자기 base 방향 반직선 위 최소 대기 반경 ρ는 모델·로봇마다 **305~559 mm**, hull 방식(M7′, B7이 쓰는 값)은 **307~559 mm**이며 모든 로봇에서 M7′ ≥ M7이다(차이 0~2 mm). config home 좌표는 M7 검사를 6개 모델 모두 통과했다(충돌 꼭짓점 0; hull 방식으로는 미검사). 전체 숫자는 `design_inputs_3stage.md` §11(M7)·§13(M7′), 직렬 하한은 §12.
 - **미측정:** 두 전략의 prevalidate 통과 makespan, S·P의 compute 시간, 06에서 S와 탐침(6174.838943466003 s)의 차이, 대기 위치 z의 영향, 교착 발생 빈도.
 
 ## 1. 범위와 모듈 경계
@@ -55,8 +55,8 @@
 | **B4** 이동 | 조각 사이·대기 위치로의 이동은 probe_driver P6과 같다: 같은 점(float32)이면 이동 없음, 아니면 ① 수직 ② 수평(z_lift) ③ 수직. 닫힌 고리 조각은 꼭짓점 순서 그대로 쓰고, 열린 조각은 현재 위치에 가까운 끝점부터 쓸지 R4(U-19) | T-B04 |
 | **B5** 시작 | 모든 로봇은 config `home_xyz_mm`에서 시작한다(probe A2·D6 선례). 첫 동작은 B4 규칙으로 첫 작업 또는 대기 위치까지 이동 | T-B05 |
 | **B6** 층 동기화 | 층 k의 모든 조각의 D·아크 W가 끝난 시각 t_k = max(로봇별 층 k 끝 시각). 층 k+1의 어떤 로봇의 첫 이동도 t_k 이후에 시작한다(그 전까지 대기 위치 W). 로봇이 층 k에 조각이 없어도 같다 | T-B06 |
-| **B7** 대기 위치 | 로봇 i의 대기 위치 = 원점에서 자기 base 방향 반직선 위, 원점 거리 ρ_i. ρ_i = 정수 mm 중 최소 값으로, 다른 모든 로봇 j가 "j가 닿는 그 모델의 모든 D 꼭짓점(전 층)"에 있어도 `geometry.pair_collides`(팔·TCP)가 없는 것. 없으면 base 위치(ρ = base 거리). z = R4(U-13). 이 검사는 설계 조건이며 최종 판정은 prevalidate | T-B07 |
-| **B8** 비작업 로봇 | 층 안에서 일이 없거나 끝낸 로봇은 B7 대기 위치로 이동해 W로 기다린다. 층 경계(B6)·교착 후퇴(B20)도 같은 위치 | T-B08 |
+| **B7** 대기 위치 | 로봇 i의 대기 위치 = 원점에서 자기 base 방향 반직선 위, 원점 거리 ρ_i. K_j = 로봇 j가 닿는 D 꼭짓점 집합(전 층, 소수 셋째 자리 반올림 중복 제거), H_j = conv(K_j), **A_j = conv({base_j} ∪ H_j)**(base_j에서 H_j 안 점으로 그은 팔 선분들의 합집합 — 볼록성에 의해 확정). 조건: 모든 j ≠ i에 대해 dist(선분 [base_i, 대기점_i], A_j) ≥ arm_i + arm_j + `arm_clearance_mm` + `prevalidate.float32_buffer_mm(geom)`(공개 config: 100 + 100 + 50 + 0.001 mm). TCP 조건은 팔 조건에 포함된다(팔 간 선분 거리 ≤ TCP 간 거리, 팔 요구 거리 ≥ TCP 요구 거리). **ρ_i = 이 조건을 만족하는 최소 정수 mm**(선분이 ρ가 클수록 짧아져 조건은 ρ에 대해 단조: M7′에서 6모델 18로봇 모두 확인). 이 방식은 j의 꼭짓점 사이 선분 위 TCP와 j의 부품 안 이동까지 포함하므로 꼭짓점 방식(M7)보다 보수적이다. 없으면 base 위치(ρ = base 거리). z = R4(U-13). 근거: 볼록 껍질 안의 TCP 위치는 모두 A_j 안의 팔 선분이다. 이 검사는 설계 조건이며 최종 판정은 prevalidate | T-B07 |
+| **B8** 비작업 로봇 | 층 안에서 일이 없거나 끝낸 로봇은 제자리 W가 `check_hold`(다른 로봇들의 확정 구간 기준)를 통과하면 **제자리**에서 기다리고, 통과하지 못하면 B7 대기 위치로 후퇴해 W로 기다린다(R4, 후퇴 횟수는 측정 항목). 층 경계(B6·B21)·교착 후퇴(B20)도 같다. 근거: 불필요한 이동 T를 없애되 충돌 여유는 prevalidate가 보증 | T-B08 |
 | **B9** 종료 주차 | (a) **한 번도 작업하지 않은 로봇**(예: S에서 일이 없는 로봇): probe A2 그대로 — home에서 시작해 `park_candidates`(λ ∈ (0, .25, .5, .75, 1.0), **가설값**) 중 `check_hold`가 통과하는 첫 후보에 W 하나, 마지막 시각 = T_end. (b) **일을 끝낸 로봇**: 일을 끝낸 직후 B7 대기 위치로 이동해 W로 유지하고 `close_timeline`. 단 **마지막으로 끝나는 로봇**은 이동하지 않고 마지막 위치에서 끝낸다(makespan에 주차 T를 넣지 않는다). (b)는 지시문의 "probe A2 규칙"의 해석 확장이므로 §10 U-27(R5) | T-B09 |
 | **B10** 닫기·쓰기 | 모든 로봇의 타임라인을 `close_timeline`하고 `check_all`이 ok여야 한다. 포트폴리오가 고른 체인만 `write_trajectory`(내부에서 `require_submittable`)로 쓴다 | T-B10 |
 | **B11** 결정성 | 모든 순회는 정렬된 키(층, 패스 번호, 조각 번호, 로봇 id)로 한다. 동률은 로봇 id가 작은 쪽, 조각 번호가 작은 쪽. 해시 순서·실행 시간·무작위 사용 금지. 같은 입력 두 번 → 바이트 동일 CSV | T-B11 |
@@ -66,8 +66,8 @@
 
 | ID | 규칙 | 검증 |
 |---|---|---|
-| **B13** 배정 | 층마다 조각을 toolpath의 정준 순서(V9) 그대로 훑으며 로봇을 정한다. 현재 작업 로봇이 그 조각에 닿으면 유지. 아니면 **이 조각에 닿는 로봇** 중 "이 조각을 포함한 그 층 남은 조각 중 그 로봇이 닿는 길이"가 가장 큰 로봇(동률은 로봇 id가 작은 쪽). 층 사이에는 직전 층의 마지막 로봇이 다음 층의 첫 조각을 이어받는다(닿으면 유지, 인계 절약) | T-B13 |
-| **B14** 한 번에 1대 | 같은 시각에 부품 영역(조각 위·리프트 구간)에 있는 로봇은 하나뿐이다. 로봇이 바뀔 때: 이전 로봇이 B7 대기 위치에 **도착한 뒤** 다음 로봇이 대기 위치에서 출발한다. 모든 구간을 `try_append`로 확인한다 | T-B14 |
+| **B13** 배정 | 층마다 **현재 로봇이 닿는 조각을 정준 순서(V9)대로 먼저 모두 처리**한다. 남은 조각이 있으면 "남은 조각 중 그 로봇이 닿는 길이"가 가장 큰 로봇(동률은 id가 작은 쪽)에게 인계하고, 그 로봇이 닿는 남은 조각을 모두 처리하는 것을 반복한다. 인계 횟수 ≤ 그 층 필요 로봇 수 − 1(한 로봇은 자기가 닿는 조각을 모두 처리한 뒤 넘기므로 남은 조각은 그 로봇이 닿지 않는 것뿐이고, 한 번 쓴 로봇은 그 층에 다시 오지 않는다. 모든 조각은 B3 분할 뒤 닿는 로봇이 있다). 층 사이에는 직전 층의 마지막 로봇이 다음 층을 이어받는다(닿는 조각부터 처리, 유지). R4. 근거: 층당 인계를 최소화(인계마다 후퇴·진입 이동 T와 대기 도착 대기가 든다) | T-B13 |
+| **B14** 한 번에 1대 | 같은 시각에 부품 영역(조각 위·리프트 구간)에 있는 로봇은 하나뿐이다. 로봇이 바뀔 때: 이전 로봇이 B7 대기 위치에 **도착한 뒤** 다음 로봇이 대기 위치에서 출발한다. 모든 구간을 B20의 `append_checked`(`try_append` + 다른 로봇의 마지막 위치 유지 검사)로 확인한다 | T-B14 |
 | **B15** 실패 | S에서 `try_append`가 실패하면 그 구간은 대기 후 재시도하지 않고 S를 **실패**로 표시한다(포트폴리오가 P를 쓴다). 이유(`Verdict`)를 기록 | T-B17 |
 
 ### 3-3. 전략 P (섹터 병렬)
@@ -78,8 +78,8 @@
 | **B17** 분할 | 패스를 섹터 경계 반직선(원점에서 각도 β_k + δ)에서 자른다. 연속한 같은 섹터 부분이 한 조각. 닫힌 고리는 첫 조각과 마지막 조각이 같은 섹터이면 합친다(스트라이크 감소). M6의 "추가 조각"이 이 규칙의 값이다 | T-B19 |
 | **B18** 폴백 | 조각마다 소유 로봇이 모든 꼭짓점에 닿는지 검사한다. 못 닿으면 그 조각을 닿는 이웃 로봇(섹터 경계가 더 가까운 쪽)에게 넘기고, 그래도 안 닿는 부분은 B3 규칙으로 분할한다. 공개 config에서 발동은 **0이어야 한다**(M6 실측 0, 테스트로 고정) | T-B20 |
 | **B19** 순서 | 섹터 안 조각 순서 = 부품 중심(전 층 D 꼭짓점의 경계상자 중심)에서 조각 중점까지 거리가 먼 것부터(바깥→안, C-44), 동률은 조각 번호. 열린 조각은 B4(R4)에 따라 방향 선택 | T-B21 |
-| **B20** 시간 진행 | 이벤트 기반(타임스텝 루프 아님). 층 안에서 **가장 이른 가용 로봇**(체인 끝 시각 최소, 동률은 id)이 자기 큐의 다음 조각 체인(이동 + 조각, 아크 포함)을 제안 → `try_append`. 성공하면 확정. 실패하면(C-44) 확정한 부분을 `pop_last`로 되돌리고 그 로봇은 자기 대기 위치(B7)로 후퇴해 W한다. W 길이 = 다른 미완료 로봇 중 자기 끝 시각보다 큰 최소 끝 시각까지. 그 시각에 다시 제안 | T-B22 |
-| **B21** 층 경계 | 한 층의 모든 큐가 비면 t_k를 정하고(B6) 모든 로봇을 B7 위치로 보내 t_k까지 W한 뒤 다음 층으로 | T-B06 |
+| **B20** 시간 진행 | 이벤트 기반(타임스텝 루프 아님). 층 안에서 **가장 이른 가용 로봇**(체인 끝 시각 최소, 동률은 id)이 자기 큐의 다음 조각 체인(이동 + 조각, 아크 포함)을 제안 → 구간마다 **`append_checked`**: ① `try_append` ② 성공하면 끝 시각이 이 구간 끝보다 이른 열린 타임라인(다른 로봇)마다 `check_pair(rules, 내 타임라인, 그 타임라인, seg.start, seg.end, hold_open=True)`로 "그 로봇이 마지막 위치를 유지"한다고 보고 검사, 실패하면 `pop_last`로 되돌려 실패. 근거: `try_append`는 `hold_open` 없이 `check_pair`를 부르므로 다른 열린 타임라인은 확정한 끝 시각까지만 알려진 것으로 본다(§5-4 인용). 구간 전체가 성공하면 확정. 실패하면(C-44) 이 조각에서 확정한 구간을 `pop_last`로 되돌리고 그 로봇은 B8 규칙(제자리 `check_hold` 통과면 제자리, 아니면 B7 대기 위치)으로 W한다. W 길이 = 다른 미완료 로봇 중 자기 끝 시각보다 큰 최소 끝 시각까지. 그 시각에 다시 제안 | T-B22 |
+| **B21** 층 경계 | 한 층의 모든 큐가 비면 t_k를 정하고(B6) 각 로봇이 B8 규칙(제자리 `check_hold` 통과면 제자리, 아니면 B7 대기 위치)으로 t_k까지 W한 뒤 다음 층으로 | T-B06 |
 | **B22** 교착 | 후퇴 W의 끝에서 더 큰 끝 시각을 가진 다른 로봇이 없으면(모두 같은 시각에 대기 중이거나 완료) 교착이다. **초안 선택지:** (a) P를 실패로 표시하고 포트폴리오가 S를 쓴다, (b) 조각 큐에서 다음 조각을 먼저 시도한다(재배열), (c) 한 로봇만 부품 영역에 들이는 직렬 모드로 그 조각만 전환. 기본값 후보 (a). 재시도 횟수는 조각당 최대 n−1회로 둔다(근거 없음, 가설) | T-B23 |
 
 ### 3-4. 포트폴리오
@@ -101,7 +101,7 @@
 | 로봇이 한 층에서 조각이 없음 | B8 대기 위치에서 W, 층 경계까지 |
 | 대기 위치가 없음(어떤 ρ도 B7 조건 불통과) | base 위치를 쓴다. 그것도 충돌이면 그 전략 실패 |
 | n = 1 | 경계 없음, S·P 동일. 포트폴리오는 S |
-| n = 2·4 | 섹터 계산(B16~B18)은 동작해야 한다. 체인·prevalidate는 현재 3대 고정(§5-3) |
+| n = 2·4 | 섹터 계산(B16~B18)은 동작해야 한다. 체인·prevalidate는 3대 고정(§5-3), Validator도 3대만 받는다(U-25) |
 
 ## 5. 인터페이스 (제안)
 
@@ -154,6 +154,18 @@ run_baseline(stack, cfg, *, params=None) -> BaselineResult   # 선택된 chains,
 | `segment.Segment`·`check_chain` | `robot_id ∈ {1, 2, 3}` | 위와 같음 |
 | `toolpath` 캐시 | 로봇 수 상한 8 | 근거 없는 상한(PROGRESS 열린 항목). 영향 없음 |
 
+### 5-4. prevalidate의 "다른 로봇이 먼저 끝난 타임라인" 처리 (소스 확인, 작업 25)
+
+| 위치 | 확인 결과 |
+|---|---|
+| `src/waam/prevalidate.py:374-376` `_known_until` | 열린 타임라인(`closed` 아님, `hold_open` 거짓)은 확정한 끝 시각 `end_time`까지만 위치가 알려진 것으로 본다. 닫혔거나 `hold_open`이면 무한히(마지막 위치 유지) |
+| `prevalidate.py:379-393` `check_pair(..., hold_open=False)` | `t_to = min(t_to, _known_until(a), _known_until(b))`(388행), `t_to < t_from`이면 검사 없이 OK(389행) → **한 타임라인이 제안 구간보다 먼저 끝났으면 그 구간은 검사하지 않는다** |
+| `prevalidate.py:421-448` `try_append` | 다른 로봇과의 검사는 `check_pair(rules, tl, timelines[other - 1], seg.start_time_s, seg.end_time_s)`(444행)로 **`hold_open` 없음** → 다른 열린 타임라인의 마지막 위치 유지는 검사하지 않는다. 닫힌 타임라인(`close_timeline` 후)만 유지로 검사된다 |
+| `prevalidate.py:396-418` `check_hold` | "robot_id가 xy에 t_from부터 영원히 머무는 것이 안전한가"를 다른 로봇의 확정 구간(열린 것은 `end_time`까지, 닫힌 것은 무한) 기준으로 검사한다. 대기 후보·종료 주차 후보 검사용 |
+| `prevalidate.py:496-507` `check_all` | 마지막에 모든 쌍을 `hold_open=True`로 검사(506행) → try_append가 통과시킨 유지 충돌이 **최종 `check_all`·`require_submittable`에서 뒤늦게 실패**할 수 있다 |
+
+결론(확정): `try_append`만으로는 부족하다. B20·B14의 `append_checked`는 `try_append` 성공 뒤에 끝 시각이 이 구간 끝보다 이른 열린 타임라인마다 `check_pair(rules, 내 타임라인, 그 타임라인, seg.start_time_s, seg.end_time_s, hold_open=True)`를 추가로 부른다(`prevalidate` 변경 없음, 공개 함수만 사용). 실패하면 `Timeline.pop_last()`로 되돌린다. `close_timeline`된 타임라인은 `try_append`가 이미 유지로 검사하므로 중복이지만 무해하다.
+
 ## 6. 실패 처리
 
 | 분류 | 판별 | 처리 |
@@ -172,23 +184,22 @@ run_baseline(stack, cfg, *, params=None) -> BaselineResult   # 선택된 chains,
 ```
 run_S(passes, cell):
   tasks ← split_at_reach(passes, cell)                       # B3
-  stand ← standby_positions(cell, passes)                    # B7
-  tl ← new_timelines(); chains ← {r: [] for r in robots}; t ← 0
-  pos ← {r: home(r)}; cur ← None                             # 현재 작업 로봇
+  stand ← standby_positions(cell, passes)                    # B7 (hull)
+  tl ← new_timelines(); pos ← {r: home(r)}; cur ← None       # cur: 현재 작업 로봇
   for layer in layers(tasks):
-    queue ← tasks_of(layer) in toolpath canonical order
-    for task in queue:
-      remaining ← length of queue from task on
-      if cur is None or cur not in task.reach:
-        cur' ← argmax over r in task.reach of reach_len(r, remaining)   # 동률: id 작은 쪽
-        if cur is not None and cur' != cur: retreat(cur → stand[cur])      # B14: 도착 뒤 다음 로봇 출발
+    todo ← tasks_of(layer) in toolpath canonical order
+    while todo nonempty:
+      if cur is None or no task in todo is reachable by cur:
+        cur' ← argmax over r of reach_len(r, todo)           # 동률: id 작은 쪽, B13
+        if cur is not None: retreat(cur → stand[cur])        # B14: 대기 도착 뒤 다음 로봇 출발
         cur ← cur'
-      steps ← transit(pos[cur] → task.start, B4) + [Step("pass", task)]
-      segs ← build_chain(cur, pos[cur], steps)
-      for seg in segs: if not try_append(seg).ok: return FAIL(verdict)   # B15
-      t ← end of segs; pos[cur] ← task.end
-    # 층 끝: 층 동기화는 한 로봇만 일하므로 자동 충족 (B6)
-  finish(): 마지막 작업 로봇은 제자리에서 종료, 나머지는 B9 (a)/(b), close_timeline 전부
+      for task in [t in todo if cur in t.reach] (canonical order):
+        steps ← transit(pos[cur] → task.start, B4) + [Step("pass", task)]
+        for seg in build_chain(cur, pos[cur], steps):
+          if not append_checked(seg).ok: return FAIL(verdict)  # B15, B20 ①②
+        pos[cur] ← task.end; todo.remove(task)
+    # 층 끝: 한 로봇만 일하므로 층 동기화 자동 충족 (B6). 다음 층도 cur로 시작
+  finish(): 마지막 작업 로봇은 제자리 종료, 나머지는 B9 (a)/(b), close_timeline 전부
   return ScheduleResult(chains, tl)
 ```
 
@@ -250,10 +261,10 @@ run_baseline(stack, cfg):
 | T-B09 | `test_parking_rules_after_finish` | (a) 작업 없는 로봇은 home 후보에 W 하나, (b) 마지막 로봇은 이동 없이 종료 |
 | T-B10 | `test_all_timelines_closed_and_submittable` | 선택된 체인이 `close_timeline`·`check_all`·`require_submittable`을 통과한다 |
 | T-B11 | `test_same_input_twice_gives_byte_identical_csv` | 같은 입력 두 번 → 바이트 동일 CSV |
-| T-B13 | `test_handover_assignment_keeps_current_robot_when_reachable` | S에서 현재 로봇이 닿으면 바뀌지 않고, 닿지 않으면 남은 길이가 가장 긴 로봇으로 바뀐다(동률은 id 작은 쪽) |
+| T-B13 | `test_handover_processes_current_robot_pieces_first_then_hands_over` | S에서 현재 로봇이 닿는 층 조각을 정준 순서로 모두 처리한 뒤에만 인계하고, 층당 인계 ≤ 필요 로봇 수 − 1이며 인계 대상은 남은 닿는 길이 최대(동률 id 작은 쪽)다 |
 | T-B14 | `test_serial_strategy_never_has_two_robots_on_part` | S에서 두 로봇의 부품 위 구간이 시간상 겹치지 않는다 |
 | T-B15 | `test_sector_functions_read_robot_count_from_config` | 2대·4대 가짜 config(`SimpleNamespace`)에서 섹터 수·경계가 로봇 수를 따른다 |
-| T-B16 | `test_no_model_number_or_robot_count_constants_in_strategy_modules` | 전략 모듈 소스에 모델 번호 문자열·3·120·60 상수 비교가 없다(AST 검사) |
+| T-B16 | `test_no_robot_count_or_angle_constants_in_strategy_modules` | 전략 모듈 AST에서 로봇 id·`len(robots)`·각도 변수와의 비교, `range(1, 4)`·`(1, 2, 3)` 같은 로봇 수·각도 맥락의 상수 리터럴(3·60·120·180 등)이 없다. 일반 숫자(길이·시간·tol)와 문자열은 검사하지 않는다 |
 | T-B17 | `test_serial_strategy_failure_is_reported_not_hidden` | `try_append` 실패를 주입하면 S가 실패로 표시되고 이유가 남는다 |
 | T-B18 | `test_sector_bounds_are_bisectors_of_neighbor_directions` | 공개 config에서 경계가 0°·120°·240° 근처(δ=0)이고 비대칭 base에서 이등분선이다 |
 | T-B19 | `test_sector_split_counts_and_length_conservation` | 분할 뒤 길이 합이 보존되고 조각 수가 M6 산술(합성 직선·고리)과 같다 |
@@ -299,7 +310,7 @@ R1 기존 결정 고정 / R2 Validator 식 / R3 점수 무관 자동 / R4 기본
 | U-11 | 결정적 동률 처리 | R3 | id·조각 번호 작은 쪽 | B11 |
 | U-12 | 부품 중심 정의 | R3 | 전 층 D 꼭짓점 경계상자 중심 | B19 |
 | U-13 | 대기 위치 z | R4 | 층 z + Δz | home z와 측정 비교 |
-| U-14 | 대기 반경 여유 | R4 | 여유 0(1 mm 해상도 ρ_min) | prevalidate 거부율 측정 후 |
+| U-14 | 대기 반경 여유 | R4 | `float32_buffer_mm`(공개 config 0.001 mm)만, 1 mm 해상도 ρ_min (B7) | prevalidate 거부율 측정 후 |
 | U-15 | 섹터 안 순서 | R4 | 바깥→안, 열린 조각은 가까운 끝점부터 | 최근접 밴드 방식은 측정 후 |
 | U-16 | 회전 δ | R4 | 측정 전 0, 이후 C-43 자동(2° 격자) | M6(b) 값 참조 |
 | U-17 | P 교착 처리 | R4 | (a) P 실패 | 발생 빈도 측정 후 |
@@ -310,9 +321,20 @@ R1 기존 결정 고정 / R2 Validator 식 / R3 점수 무관 자동 / R4 기본
 | U-22 | `algo` 문자열 | R3 | `baseline_portfolio` (`notes`에 선택 전략) | |
 | U-23 | 시작 위치 | R1 | home | probe A2·D6 |
 | U-24 | 종료 주차 (작업 없는 로봇) | R1 | probe A2 후보 | |
-| U-25 | 체인 일반화(2·4대 prevalidate) | R5 | 이 명세에서는 하지 않음 | `prevalidate`·`segment` 3대 고정, 범위 결정 |
-| U-26 | S·P 각각을 Validator에 돌려 results.csv 비교군으로 남길지 | R5 | 포트폴리오 결과만 | C-21(run_all)과 함께 |
-| U-27 | 종료 주차 (일을 끝낸 로봇): (a) 마지막 위치 유지 (b) 대기 위치로 이동 (c) home 후보 | R5 | (b), 마지막 로봇은 제자리 | 지시문 "probe A2 규칙"의 해석 확장. makespan에 주차 T가 들어가는지가 걸린다 |
+| U-25 | 체인 일반화(2·4대 prevalidate) | R2 | **종결: 하지 않음.** Validator `config/models.py:90` `robots: tuple[RobotConfig, RobotConfig, RobotConfig]`, `:99-101` `sorted(ids) != [1, 2, 3]`이면 거부 → Validator가 정확히 3대만 받는다(C-22 L-5, 작업 6). 비공개 모델도 3대이고 일반화 대상은 base 위치뿐이다(섹터 규칙 B16이 처리). 섹터·도달·대기 위치 순수 함수만 n을 config에서 읽고 테스트한다(T-B15) | Validator 식 |
+| U-26 | S·P 각각을 Validator에 돌려 results.csv 비교군으로 남길지 | → C-21(run_all 설계)로 이월 | 기본: 비교군 기록(CLAUDE.md "새 전략을 추가할 때 기존 전략을 지우지 않는다"), 비용은 04·05 Validator 시간 측정 후 정한다 | 이 명세에서 결정하지 않음 |
+| U-27 | 종료 주차 (일을 끝낸 로봇) | R6 | **자동:** (b) 일을 끝낸 로봇은 B7 대기 위치에서 W 유지(B8 규칙상 제자리 `check_hold`가 통과하면 제자리), 마지막으로 끝나는 로봇은 제자리 종료. 근거: makespan에 주차 T를 넣지 않으므로 makespan 영향 없음, 대기 위치는 충돌 여유가 가장 크다 | 지시문 "probe A2 규칙"은 작업 없는 로봇(B9 (a))에 적용 |
 | U-28 | 대기 위치에서 층 사이 z 변화 | R4 | U-13과 같이 | |
 
-**R5(사람 결정으로 남는 것): U-25, U-26, U-27.**
+R5 잔여: 없음. (작업 25: U-25 → R2 종결, U-26 → C-21 이월, U-27 → R6 자동.)
+
+## 11. 작업 25 수정 6건 (근거 한 줄씩)
+
+| # | 수정 | 근거 |
+|---|---|---|
+| 1 | B7 대기 위치를 hull 방식(A_j = conv({base_j} ∪ conv(K_j)))으로. M7′ 재측정은 `design_inputs_3stage.md` §13 | 꼭짓점 사이 선분 위 TCP와 j의 부품 안 이동까지 포함(볼록성), 6모델 18로봇 모두 M7′ ≥ M7 |
+| 2 | B14·B20: `append_checked`(`try_append` + 마지막 위치 유지 `check_pair(hold_open=True)`) | §5-4: `try_append`는 `hold_open` 없이 호출(444행)해 먼저 끝난 열린 타임라인의 유지를 검사하지 않는다 |
+| 3 | B8·B21: 제자리 `check_hold` 통과면 제자리, 아니면 B7 후퇴(R4, 후퇴 횟수 측정) | 불필요한 이동 T 제거, 안전은 prevalidate가 보증 |
+| 4 | B13·7-1·T-B13: 현재 로봇이 닿는 조각을 모두 처리한 뒤 인계 반복(인계 ≤ 필요 로봇 수 − 1) | 인계마다 후퇴·진입 이동과 대기 도착 대기가 든다 |
+| 5 | T-B16: 로봇 수·각도 맥락 상수만 금지하는 AST 검사 | 리터럴 전면 금지는 길이·시간·tol 같은 무관한 수까지 막는다 |
+| 6 | §0: M7 범위를 305~559 mm로 정정, M7′ 범위 307~559 mm 병기 | 이전 문구 "305~468"은 05(558~559)를 빠뜨린 오류였다 |
