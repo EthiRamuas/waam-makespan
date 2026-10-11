@@ -15,6 +15,7 @@ import pytest
 from waam_validator.config.loader import load_config
 
 from waam import geometry as geo
+from waam.prevalidate import float32_buffer_mm
 from waam.pieces import PieceError, passes_to_tasks, split_at_reach, split_at_sectors
 from waam.sector import delta_max, owner_robot, phi_max, sector_bounds
 from waam.strategy import Cell, Task
@@ -231,7 +232,8 @@ def test_empty_reach_pass_is_split_at_reach_boundary(cell):
     assert tasks[0].reachable == {1} and tasks[1].reachable == {2, 3}
     cut = tasks[0].vertices[-1]
     assert tasks[1].vertices[0] == cut
-    assert abs(cut[0] - (-1400.0 + 1500.0)) < 1e-4 and cut[1] == 0.0
+    buf = float32_buffer_mm(cell.geometry)
+    assert abs(cut[0] - (-1400.0 + 1500.0 - buf)) < 1e-6 and cut[1] == 0.0  # C-47: R - float32_buffer_mm
     assert geo.in_reach(cell.geometry, 1, np.array(cut))  # the cut point is inside the Validator rule
     assert sum(t.length for t in tasks) == pytest.approx(700.0, abs=1e-9)
     assert [t.pass_index for t in tasks] == [0, 0] and [t.piece_index for t in tasks] == [0, 1]

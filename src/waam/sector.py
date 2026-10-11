@@ -99,3 +99,22 @@ def delta_max(cell: Cell, spec: SectorSpec, r_max_mm: float) -> float:
     phi = phi_max(cell, r_max_mm)
     return float(min(min(phi[i] - spec.half_hi[i], phi[i] - spec.half_lo[i])
                      for i in range(spec.n)))
+
+
+def sector_arc(spec: SectorSpec, index: int) -> tuple[float, float]:
+    """(lo, hi) of robot ``index``'s sector, boundaries rotated by delta; the sector is [lo, hi) going
+    counter-clockwise from lo (width = (hi - lo) mod 2 pi). Needs n > 1."""
+    k = int(np.flatnonzero(spec.order == index)[0])
+    return float(spec.beta[k - 1] + spec.delta), float(spec.beta[k] + spec.delta)
+
+
+def angular_distance_to_sector(spec: SectorSpec, index: int, angle_rad: float) -> float:
+    """Circular distance from ``angle_rad`` to robot ``index``'s sector: 0 inside [lo, hi)."""
+    if spec.n == 1:
+        return 0.0
+    lo, hi = sector_arc(spec, index)
+    width = (hi - lo) % TWO_PI
+    rel = (angle_rad - lo) % TWO_PI
+    if rel < width:
+        return 0.0
+    return float(min(rel - width, TWO_PI - rel))

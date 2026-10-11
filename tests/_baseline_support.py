@@ -25,7 +25,7 @@ def fake_cfg(cfg, bases_deg, dist=1400.0, reach=1500.0, origin=(0.0, 0.0)):
         y = origin[1] + dist * math.sin(math.radians(a))
         robots.append(SimpleNamespace(
             id=i + 1, base_xyz_mm=(x, y, 0.0), home_xyz_mm=(0.5 * x, 0.5 * y, 1000.0),
-            tcp_radius_mm=100.0, arm_envelope_radius_mm=100.0, xy_reach_radius_mm=reach))
+            tcp_radius_mm=100.0, arm_envelope_radius_mm=100.0, xy_reach_radius_mm=reach[i] if isinstance(reach, (list, tuple)) else reach))
     ws = SimpleNamespace(shape="circle_xy", center_xy_mm=origin, radius_mm=cfg.workspace.radius_mm)
     return SimpleNamespace(robots=tuple(robots), collision=cfg.collision, workspace=ws,
                            process=cfg.process, shape_validation=cfg.shape_validation)

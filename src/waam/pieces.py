@@ -14,7 +14,8 @@ from typing import Any
 import numpy as np
 
 from . import geometry as geo
-from .sector import SectorSpec, owner_index
+from .prevalidate import float32_buffer_mm
+from .sector import SectorSpec, angular_distance_to_sector, owner_index
 from .strategy import Cell, Task
 
 _U_TOL = 1e-9  # tolerance in the polyline parameter u = segment index + t
@@ -53,9 +54,11 @@ def passes_to_tasks(passes: Sequence[Any], cell: Cell) -> list[Task]:
 
 
 def _robot_intervals(v: np.ndarray, cell: Cell, idx: int) -> list[tuple[float, float]]:
-    """Maximal intervals of u in [0, nseg] where robot ``idx`` reaches the polyline (d <= R + eps/2)."""
+    """Maximal intervals of u in [0, nseg] where robot ``idx`` reaches the polyline (d <= R - float32_buffer_mm)."""
     g = cell.geometry
-    r_eff = float(g.reach_mm[idx] + 0.5 * g.eps_mm)  # cut points stay inside R + eps despite rounding
+    # C-47 (hypothesis): cut on R - float32_buffer_mm, inside the Validator limit R + eps even after
+    # the float32 quantisation of the Validator's loader
+    r_eff = float(g.reach_mm[idx] - float32_buffer_mm(g))
     base = g.base_xy[idx]
     out: list[tuple[float, float]] = []
     for k in range(len(v) - 1):
@@ -107,8 +110,8 @@ def _sub_polyline(v: np.ndarray, x0: float, x1: float) -> np.ndarray:
 def split_at_reach(passes: Sequence[Any], cell: Cell) -> list[Task]:
     """B3. A pass some robot reaches entirely is kept whole. A pass nobody reaches entirely is cut
     greedily: from the current position take the robot whose reach interval (d <= R + eps, the
-    ``geometry.in_reach`` rule) extends farthest, cut at the exact circle/segment intersection,
-    repeat. Raises ``PieceError`` if some point is reached by nobody."""
+    ``geometry.in_reach`` rule, shrunk by ``float32_buffer_mm`` per C-47) extends farthest, cut at
+    the exact circle/segment intersection, repeat. Raises ``PieceError`` if some point is reached by nobody."""
     tasks: list[Task] = []
     for pi, q in enumerate(passes):
         if q.reachable_robots:
@@ -147,18 +150,69 @@ def split_at_reach(passes: Sequence[Any], cell: Cell) -> list[Task]:
 
 @dataclass(frozen=True, slots=True)
 class SectorSplit:
-    tasks: list[Task]  # every piece, owner = sector owner (robot id)
-    unresolved: tuple[int, ...]  # indices into ``tasks`` whose owner cannot reach every vertex (B18)
-    cut_tasks: int  # input tasks cut into more than one piece
-    extra_pieces: int  # output pieces - input tasks
+    tasks: list[Task]  # every piece; owner = sector owner, or the robot chosen by the fallback (B18)
+    unresolved: tuple[int, ...]  # indices into ``tasks`` nobody reaches (fallback step 3): P must fail
+    cut_tasks: int  # input tasks cut into more than one piece by sector boundaries
+    extra_pieces: int  # output pieces - input tasks (includes fallback B3 splits)
+    triggered: int = 0  # sector pieces whose owner could not reach every vertex (fallback fired)
 
     @property
     def fallback_pieces(self) -> int:
-        return len(self.unresolved)
+        return self.triggered
 
     @property
     def fallback_length_mm(self) -> float:
         return float(sum(self.tasks[i].length for i in self.unresolved))
+
+
+@dataclass(frozen=True, slots=True)
+class _PassLike:
+    layer: int
+    z: float
+    kind: str
+    vertices: tuple
+    length: float
+    reachable_robots: frozenset
+
+
+def _mid_angle(pv: np.ndarray, spec: SectorSpec) -> float:
+    """Angle (about the origin) of the point at half the arc length of the polyline."""
+    seg = np.hypot(*np.diff(pv, axis=0).T) if len(pv) > 1 else np.zeros(0)
+    total = float(seg.sum())
+    if total <= 0.0:
+        p = pv[0]
+    else:
+        half = total / 2.0
+        k = int(np.searchsorted(np.cumsum(seg), half, side="left"))
+        k = min(k, len(seg) - 1)
+        before = float(seg[:k].sum())
+        t = (half - before) / float(seg[k]) if seg[k] > 0.0 else 0.0
+        p = pv[k] + t * (pv[k + 1] - pv[k])
+    return math.atan2(p[1] - spec.origin_xy[1], p[0] - spec.origin_xy[0])
+
+
+def _best_owner(candidates: frozenset[int], pv: np.ndarray, cell: Cell, spec: SectorSpec) -> int:
+    """B18 step 1: the candidate whose sector is angularly nearest to the piece midpoint (ties: smaller id)."""
+    ang = _mid_angle(pv, spec)
+    return min(candidates, key=lambda rid: (
+        angular_distance_to_sector(spec, cell.robot_ids.index(rid), ang), rid))
+
+
+def _fallback(task: Task, pv: np.ndarray, sector_owner: int, cell: Cell,
+              spec: SectorSpec) -> list[tuple[np.ndarray, int, frozenset[int], bool]]:
+    """B18 (C-47): (1) hand the piece to the nearest-sector robot that reaches all of it; (2) if none,
+    cut it with B3 and apply (1) to each part; (3) a part nobody reaches stays with the sector owner,
+    flagged unresolved. Returns (vertices, owner, reachable, resolved) per part."""
+    reach = _reach_ids(cell, pv)
+    if reach:
+        return [(pv, _best_owner(reach, pv, cell, spec), reach, True)]
+    like = _PassLike(task.layer, task.z, task.kind, _tuple(pv), _length(pv), frozenset())
+    try:
+        parts = split_at_reach([like], cell)
+    except PieceError:
+        return [(pv, sector_owner, reach, False)]
+    return [(np.array(t.vertices), _best_owner(t.reachable, np.array(t.vertices), cell, spec),
+             t.reachable, True) for t in parts]
 
 
 def _runs(v: np.ndarray, spec: SectorSpec) -> list[tuple[int, np.ndarray]]:
@@ -206,12 +260,12 @@ def _runs(v: np.ndarray, spec: SectorSpec) -> list[tuple[int, np.ndarray]]:
 
 def split_at_sectors(tasks: Sequence[Task], cell: Cell, spec: SectorSpec) -> SectorSplit:
     """B17: cut every task at the sector boundary rays (half-open sectors [lo, hi), zero-length
-    parts dropped, closed rings merged). B18: report the pieces whose owner cannot reach every
-    vertex; the reassignment to a neighbour is **not** implemented (the spec leaves the neighbour
-    choice and the following B3 split open), so these pieces keep the sector owner."""
+    parts dropped, closed rings merged). B18 (C-47): a piece whose sector owner cannot reach every
+    vertex is reassigned (see ``_fallback``); pieces nobody reaches are listed in ``unresolved``."""
     out: list[Task] = []
     unresolved: list[int] = []
     cut = 0
+    triggered = 0
     seq: dict[int, int] = {}
     for task in tasks:
         v = np.array(task.vertices, dtype=np.float64)
@@ -222,13 +276,18 @@ def split_at_sectors(tasks: Sequence[Task], cell: Cell, spec: SectorSpec) -> Sec
         else:
             cut += 1
         for lab, pv in runs:
-            owner = cell.robot_ids[lab]
-            k = seq.get(task.pass_index, 0)
-            seq[task.pass_index] = k + 1
+            sector_owner = cell.robot_ids[lab]
             reach = _reach_ids(cell, pv)
-            piece = Task(task.layer, task.z, task.kind, _tuple(pv), _length(pv), task.pass_index,
-                         k, reach, owner)
-            if owner not in reach:
-                unresolved.append(len(out))
-            out.append(piece)
-    return SectorSplit(out, tuple(unresolved), cut, len(out) - len(tasks))
+            if sector_owner in reach:
+                parts = [(pv, sector_owner, reach, True)]
+            else:
+                triggered += 1
+                parts = _fallback(task, pv, sector_owner, cell, spec)
+            for part_v, owner, part_reach, ok in parts:
+                k = seq.get(task.pass_index, 0)
+                seq[task.pass_index] = k + 1
+                if not ok:
+                    unresolved.append(len(out))
+                out.append(Task(task.layer, task.z, task.kind, _tuple(part_v), _length(part_v),
+                                task.pass_index, k, part_reach, owner))
+    return SectorSplit(out, tuple(unresolved), cut, len(out) - len(tasks), triggered)

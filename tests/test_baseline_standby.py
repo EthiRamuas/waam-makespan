@@ -13,6 +13,7 @@ from waam_validator.config.loader import load_config
 from waam import geometry as geo
 from waam.standby import PARK_LAMBDAS, arm_hulls, park_candidates, standby_positions, standby_rho
 from waam.strategy import Cell
+from experiments import probe_06 as probe
 from _baseline_support import FIXTURE_CONFIG, MODELS, SLOW, _pass, fake_cfg, load_model
 
 
@@ -134,3 +135,9 @@ def test_six_models_standby_matches_m7_prime(name):
     cell6 = Cell.from_config(c)
     rhos = standby_rho(cell6, res.passes)
     assert tuple(rhos[rid] for rid in cell6.robot_ids) == M7H_REF[name]
+
+
+def test_park_lambdas_and_candidates_match_the_probe(cell, cfg):
+    assert PARK_LAMBDAS == probe.PARK_LAMBDAS
+    for rid in cell.robot_ids:
+        assert park_candidates(cell, rid) == probe.park_candidates(cfg, rid)
