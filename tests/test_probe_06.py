@@ -369,8 +369,8 @@ def test_probe_results_row_is_bound_to_trajectory_sha(tmp_path, near_source, bui
     # a verdict for another trajectory is refused, not recorded
     other = tmp_path / "other"
     runner = FakeRunner(built, {"bind_sha": "0" * 64})
-    with pytest.raises(ValueError, match="was not produced for"):
-        drive(other, near_source, runner)
+    assert drive(other, near_source, runner) == pr.EXIT_ABORT  # unforeseen error: code 3
+    assert "was not produced for" in read_probe(other)["abort_detail"]
     assert not (other / "results.csv").exists()
 
 
@@ -494,6 +494,28 @@ def test_probe_written_d_segments_match_toolpath_vertices(passed_run, built):
     for (ga, gb), (wa, wb) in zip(got, want):
         assert np.array_equal(np.float32(ga), pv.quantize_f32(wa).astype(np.float32))
         assert np.array_equal(np.float32(gb), pv.quantize_f32(wb).astype(np.float32))
+
+
+def test_probe_unexpected_exception_is_abort_code_3(tmp_path, near_source, built, capsys):
+    def boom(job):
+        raise RuntimeError("surprise")
+    assert drive(tmp_path, near_source, FakeRunner(built, boom)) == pr.EXIT_ABORT
+    assert "ABORT PROBE_UNEXPECTED: RuntimeError: surprise" in capsys.readouterr().err
+    probe = read_probe(tmp_path)
+    assert probe["abort"] == "PROBE_UNEXPECTED" and "surprise" in probe["abort_detail"]
+    assert not (tmp_path / "results.csv").exists()
+
+
+def test_probe_p18_comparison_error_is_code_4_and_keeps_pass_row(tmp_path, near_source, built):
+    def bad_columns(job):
+        code, wall = 0, 3.25
+        fake_outputs(job, built)
+        (job / "validator_out" / "layer_metrics.csv").write_text("wrong,cols\n1,2\n", encoding="utf-8")
+        return code, wall
+    assert drive(tmp_path, near_source, FakeRunner(built, bad_columns)) == pr.EXIT_MISMATCH
+    assert "error" in read_probe(tmp_path)["layer_comparison"]
+    rows = results.read_results(tmp_path / "results.csv")
+    assert len(rows) == 1 and rows[0].passed is True
 
 
 # ------------------------------------------------------------------ extras (classification)

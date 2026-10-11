@@ -425,7 +425,10 @@ def validator_items(outputs: dict) -> dict:
     """Items for probe.json, copied from the Validator files without processing."""
     s = outputs.get("summary") or {}
     shape, coll = s.get("shape") or {}, s.get("collision") or {}
-    ious = [_num(r["iou"]) for r in outputs.get("layers", [])]
+    try:
+        ious = [_num(r["iou"]) for r in outputs.get("layers", [])]
+    except (KeyError, ValueError):  # unexpected columns: leave it empty, P18 reports the error
+        ious = []
     return {"coverage": shape.get("coverage"), "overfill": shape.get("overfill_ratio"),
             "iou": shape.get("iou"),
             "layer_iou_min": min(ious) if ious else None,
@@ -538,6 +541,11 @@ def _attempt(ctx: Context, cfg, stack, attempt: int, first_candidate: int, slici
         if isinstance(exc, ProbeValidatorTimeout):
             probe["validator_wall_s_lower_bound"] = exc.wall_s
         raise
+    except Exception as exc:  # noqa: BLE001 -- not foreseen: no verdict is claimed
+        probe["abort"] = "PROBE_UNEXPECTED"
+        probe["abort_detail"] = f"{type(exc).__name__}: {exc}"
+        log(f"ABORT PROBE_UNEXPECTED: {probe['abort_detail']}")
+        raise
     finally:
         _write_json(job / "probe.json", probe)
 
@@ -572,6 +580,9 @@ def run_probe(source_dir: Path = DEFAULT_SOURCE_DIR, run_id: str | None = None, 
                 continue
             print(f"ABORT {exc}", file=sys.stderr)
             return EXIT_ABORT
+        except Exception as exc:  # noqa: BLE001 -- must not look like exit 1 (shape FAIL)
+            print(f"ABORT PROBE_UNEXPECTED: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return EXIT_ABORT
         if cls is FailureClass.PASS:
             return _finish_pass(cfg, stack, info)
         if cls is FailureClass.SHAPE:
@@ -590,11 +601,17 @@ def run_probe(source_dir: Path = DEFAULT_SOURCE_DIR, run_id: str | None = None, 
 def _finish_pass(cfg, stack, info) -> int:
     """P18: our per-layer metrics vs the Validator's. A mismatch is reported, never retried."""
     probe, outputs = info["probe"], info["outputs"]
-    overall, own_layers = own_shape_metrics(stack, info["toolpath"], cfg)
-    shape = outputs["summary"].get("shape") or {}
-    cmp = compare_layers(own_layers, outputs["layers"], TOLERANCE,
-                         own_overall={n: getattr(overall, n) for n in _COMPARED},
-                         validator_overall=shape)
+    try:
+        overall, own_layers = own_shape_metrics(stack, info["toolpath"], cfg)
+        shape = outputs["summary"].get("shape") or {}
+        cmp = compare_layers(own_layers, outputs["layers"], TOLERANCE,
+                             own_overall={n: getattr(overall, n) for n in _COMPARED},
+                             validator_overall=shape)
+    except Exception as exc:  # noqa: BLE001 -- the PASS row is already in results.csv: keep it
+        probe["layer_comparison"] = {"error": f"{type(exc).__name__}: {exc}"}
+        _write_json(info["job"] / "probe.json", probe)
+        info["log"](f"P18 comparison error: {probe['layer_comparison']['error']}")
+        return EXIT_MISMATCH
     probe["layer_comparison"] = {"tolerance": TOLERANCE, "ok": cmp.ok,
                                  "max_abs_err": cmp.max_abs_err, "own_layers": cmp.own_layers,
                                  "validator_layers": cmp.validator_layers,
