@@ -1,8 +1,9 @@
-# probe_driver 명세 (v0 초안)
+# probe_driver 명세 (v0)
 
-상태: **초안, 미확정. 구현하지 않았다.** 근거: DECISIONS C-23·C-29·C-30·C-31·C-32·C-33, `docs/specs/toolpath.md`, `src/waam/{timing,writer,results,geometry,prevalidate,segment}.py`와 각 테스트(읽기), Validator 도움말·산출물(읽기). 이 파일과 `docs/spec.md`가 어긋나면 `docs/spec.md`가 맞다.
+상태: **확정(C-41).** 구현: 작업 19. 근거: DECISIONS C-23·C-29·C-30·C-31·C-32·C-33, `docs/specs/toolpath.md`, `src/waam/{timing,writer,results,geometry,prevalidate,segment}.py`와 각 테스트(읽기), Validator 도움말·산출물(읽기). 이 파일과 `docs/spec.md`가 어긋나면 `docs/spec.md`가 맞다.
 표기: **확정**(코드·소스·실측) / **가설**(근거 없는 값) / **미측정** / **미확인**. 규칙 번호는 P1~P22만 쓴다.
 목적: 2단계 종료 기준 "모델 06에서 실제 Validator PASS 1회"(C-30)를 얻는 구동 스크립트 `experiments/` 한 개를 정의한다. 새 알고리즘이 아니라 기존 모듈(toolpath v0, timing, prevalidate, writer, results)을 이어 붙이는 배관이다.
+채팅 검토 반영(C-41에 포함, 2026-10-11 16시): P16·P18·P22·T-20 수정, T-26 추가.
 
 ## 0. 핵심 사실
 
@@ -55,13 +56,13 @@
 | **P13** 쓰기 | `writer.write_trajectory(path, chains, rules, timelines)`만 쓴다(`require_submittable`·재파싱 린트 포함). 린트 실패는 파일이 남지 않으므로 abort `PROBE_CSV`(분류는 §6) | T-16 |
 | **P14** job 폴더 | `.cache/waam/probe/<run>/`, `<run>` = `YYYYMMDD-HHMMSS-06-<git short hash>`(로컬 시각). 폴더가 이미 있으면 abort(덮어쓰기 금지). 내용: `config.yaml`, `target.stl`, `trajectory.csv`, `validator_out/`(Validator `--output`, 새 폴더), `validator_stdout.json`, `probe.json`, `probe.log` | T-17 |
 | **P15** Validator 실행 | venv 자체 실행 파일(`Path(sys.executable).parent / "waam-validator.exe"`; 없으면 abort)로 `run <job> --output <job>/validator_out --json`. 종료 코드, wall 시간(`time.perf_counter`, subprocess 호출 전후만)을 `probe.json`에 기록. 타임아웃 `T_v`(**가설값 1800 s**, §10 D3). 타임아웃은 FAIL이 아니라 abort `PROBE_VALIDATOR_TIMEOUT` | T-18 |
-| **P16** results.csv | Validator가 판정한 실행만 `results.make_row(model="06", algo=<§10 D8>, compute_s, seed=None, commit, trajectory_path, lower_bound_s=lower_bound(stack, cfg).lower_bound_s, summary_path=validator_out/summary.json)` → `append_result`. `makespan_s`·`passed`·`validator_*`는 summary.json 값 그대로. `ratio`는 `make_row`가 우리 하한으로 계산한 값이며 `notes`에 "ratio=ours, 3-robot lower bound, 1-robot probe"를 적는다. 파일이 없으면 `append_result`가 헤더를 만든다. 이 파일의 첫 행이 이 탐침의 첫 Validator 실행이다 | T-19 |
+| **P16** results.csv | Validator가 판정한 **모든 시도(PASS·FAIL 모두)**마다(판정 전 abort는 행 없음) `results.make_row(model="06", algo=<§10 D8>, compute_s, seed=None, commit, trajectory_path, lower_bound_s=lower_bound(stack, cfg).lower_bound_s, summary_path=validator_out/summary.json)` → `append_result`. `makespan_s`·`passed`·`validator_*`는 summary.json 값 그대로. `ratio`는 `make_row`가 우리 하한으로 계산한 값이며 `notes`에 "ratio=ours, 3-robot lower bound, 1-robot probe"와 run id, 시도 번호(`a<n>`)를 적는다. 파일이 없으면 `append_result`가 헤더를 만든다. 이 파일의 첫 행이 이 탐침의 첫 Validator 실행이다 | T-19 |
 | **P17** 확장 기록 | `results.csv`에 없는 항목(§B)은 `<run>/probe.json`에 쓴다: coverage, overfill, 전체 IoU, 층별 IoU 최소, 실패 층 수, 로봇별 D/T/W 초, 충돌 이벤트 수, Validator wall, 생성 시간, git 해시 + dirty 여부, chain 행 수, trajectory.csv sha256 | T-20 |
-| **P18** 가설 검증 | 자체 층별 지표 = toolpath 패스 발자국의 층별 합집합을 Validator 방식으로 정규화(`normalize_polygon` 규칙)해 목표 단면과 비교한 coverage·overfill_ratio·iou(테스트 13과 같은 식). `validator_out/layer_metrics.csv`의 같은 층 값과 층별·전체 모두 절대 오차 ≤ **0.005(가설값)**인지 본다. 층 수가 다르면 불일치. 초과해도 재시도하지 않고 `probe.json`에 불일치 목록과 최대 오차를 기록하고 종료 코드 4로 보고한다 | T-21 |
+| **P18** 가설 검증 | 자체 층별 지표 = toolpath 패스 발자국의 층별 합집합을 Validator 방식으로 정규화(`normalize_polygon` 규칙)해 목표 단면과 비교한 coverage·overfill_ratio·iou(테스트 13과 같은 식). `validator_out/layer_metrics.csv`의 같은 층 값과 층별·전체 모두 절대 오차 ≤ **0.005(가설값)**인지 본다. 층 수가 다르면 불일치. 초과해도 재시도하지 않고 `probe.json`에 불일치 목록과 최대 오차를 기록하고 종료 코드 4로 보고한다. `results.csv` 행은 Validator 판정 그대로 둔다(PASS면 PASS) | T-21 |
 | **P19** 형상 FAIL | `summary.json`의 `shape.passed == false`(IoU < 0.9, coverage < 0.8, overfill > 0.30, 실패 층 > 5% 중 하나)이면 **멈추고 사람에게 보고**한다. 재시도·파라미터 변경 없음. 수치 전부 `probe.json` | T-22 |
 | **P20** 재시도 | 아래 §6 표. 최대 **3회 재시도**(처음 시도 포함 4회), 모든 오류 종류가 한 예산을 공유한다. 시도마다 새 run 폴더(`<run>-a<n>`) | T-23 |
 | **P21** A1 | 06의 **첫 Validator 실행이 끝난 뒤** 그 wall 시간 `t_v`로 스윕 점 수를 정한다: `t_v ≤ 120 s` → 10점(s ∈ {0.9, 1.0, 1.1, 1.2, 1.3}·w × o ∈ {w/4, w/2}, n_c = 1), 아니면 5점(o = w/2, s는 같은 5점). 이 스크립트 v0는 점 수만 `probe.json`(`a1_points`)에 기록하고 스윕을 실행하지 않는다(§10 D13) | T-24 |
-| **P22** 쓰기 범위·종료 코드 | 쓰는 곳은 `.cache/waam/probe/<run>/`와 `experiments/results.csv`뿐이다. 종료 코드: 0 = Validator PASS이고 P18 허용 안, 1 = 형상 FAIL(P19), 2 = 재시도 소진 후 비형상 FAIL 또는 오류, 3 = Validator 전 abort(P2·P4·P12·P13·P15), 4 = PASS이나 P18 불일치 | T-25 |
+| **P22** 쓰기 범위·종료 코드 | 쓰는 곳은 `.cache/waam/probe/<run>/`와 `experiments/results.csv`뿐이다. 종료 코드: 0 = Validator PASS이고 P18 허용 안, 1 = 형상 FAIL(P19), 2 = 재시도 소진 후 비형상 FAIL 또는 오류, 3 = Validator 전 abort(P2·P4·P12·P13·P15), 4 = PASS이나 P18 불일치(`results.csv`에는 PASS로 기록, C-30의 "PASS 1회" 기준은 충족으로 본다) | T-25 |
 
 ## 4. 경우의 수와 엣지 케이스
 
@@ -75,7 +76,7 @@
 | 로봇 1의 TCP·팔과 주차 로봇이 XY로 겹침 | prevalidate가 판정, 사전 실측 위반 없음(home 후보 0) |
 | Validator가 prevalidate와 다른 충돌 판정 | prevalidate의 건전성 계약 위반 신호 → §6, 재시도 1회 사용 뒤 보고 |
 
-## 5. 인터페이스 (제안, 구현 안 함)
+## 5. 인터페이스
 
 ```
 experiments/probe_06.py                 # python -m experiments.probe_06 [--source-dir PATH] [--run-id ID]
@@ -134,7 +135,7 @@ main():
   a1_points ← 10 if wall_s ≤ 120 else 5                                           # P21
 ```
 
-## 8. 단위 테스트 제안 (구현하지 않음)
+## 8. 단위 테스트
 
 공통: Validator 없이 도는 것은 `experiments/` 함수를 직접 부르고, Validator 실행이 필요한 것만 `waam-validator`를 쓴다. 이름은 제안이다.
 
@@ -159,12 +160,13 @@ main():
 | T-17 | `test_probe_run_folder_is_never_overwritten` | 같은 `<run>` 폴더가 있으면 abort, 기존 파일 불변 |
 | T-18 | `test_probe_validator_timeout_is_abort_not_fail` | 가짜 실행기가 시간 초과하면 abort 3, results.csv 행 없음 |
 | T-19 | `test_probe_results_row_is_bound_to_trajectory_sha` | `make_row`가 summary.json·trajectory.csv sha256을 검증하고 행이 하나 추가된다 |
-| T-20 | `test_probe_json_has_all_thirteen_items` | probe.json에 요청 항목 13개 키가 모두 있고 값이 summary/robot_metrics 값 그대로다 |
+| T-20 | `test_probe_json_has_all_required_items` | probe.json에 요청 항목 13개 키와 `slicing_s`, `toolpath_s`, `chain_s` 키가 모두 있고 값이 summary/robot_metrics 값 그대로다 |
 | T-21 | `test_probe_layer_comparison_flags_error_above_tolerance` | 가짜 layer_metrics.csv에서 0.0051 차이는 불일치, 0.0049는 일치(경계 포함) |
 | T-22 | `test_probe_shape_fail_stops_without_retry` | `shape.passed=false`인 가짜 summary에서 시도 1회, 종료 코드 1 |
 | T-23 | `test_probe_retry_budget_is_three_and_shared` | 충돌→CSV→속도 연속 실패에서 재시도 3회 뒤 종료 코드 2, 시도 4회 |
 | T-24 | `test_probe_a1_threshold_boundary` | `t_v = 120.0` → 10점, `120.001` → 5점(o = w/2) |
 | T-25 | `test_probe_writes_only_inside_cache_and_results_csv` | 임시 작업 디렉터리 감시에서 그 밖의 쓰기가 없고 종료 코드가 P22 표와 같다 |
+| T-26 | `test_probe_written_d_segments_match_toolpath_vertices` | 쓴 CSV의 D 구간 끝점이 toolpath 패스 꼭짓점의 float32 양자화 값과 같다(D16 a의 보조 검사: 비교 불일치 시 가설 문제와 배관 문제를 가른다) |
 
 ## 9. 가설과 검증 방법
 
@@ -177,28 +179,28 @@ main():
 
 ## 10. 사람 결정 필요
 
-각 항목의 "기본값 후보"는 사람이 정하기 전의 제안이며, 근거 없는 숫자는 가설이다.
+결정 열: 전 항목 기본값 후보 채택(C-41). 근거 없는 숫자는 가설로 남는다.
 
-| # | 결정 | 후보 | 기본값 후보 | 근거 / 비고 |
-|---|---|---|---|---|
-| D1 | 좌표 정밀도 요구 "1e-6 이상" | a) 시각만 1e-6 이상, 좌표는 float32 값 b) 지시대로 좌표 1e-6 | **a** | b는 불가능(P9). Validator 로더가 float32로 읽는다(확정) |
-| D2 | CSV·속도 오류의 "자동 재시도" 의미 | a) 새 run 폴더에서 같은 입력으로 1회 재생성, 재현되면 중단 b) 재시도 없이 즉시 중단 c) 로직을 바꿔 재시도(예: 후보 변경) | **a** | 입력이 같으면 결과가 같아 재시도로 바뀌는 것이 없다(결정적 코드). 충돌만 후보 변경으로 의미가 있다 |
-| D3 | Validator 타임아웃 `T_v` | 600 / 1800 / 3600 s | 1800 s (**가설**) | 06 wall 시간 **미측정**. 테스트는 600 s를 쓴 적이 있다(`test_stage1_end_to_end.py`) |
-| D4 | 주차 로봇의 마지막 시각 | a) `T_end`와 같게(W 하나) b) 짧은 W(예: 1.0 s)만 | **a** | 두 방식의 Validator 판정은 같다(끝난 로봇은 makespan까지 위치 유지). a는 stage-1 테스트와 같고 시간 합 검사가 단순 |
-| D5 | 주차 후보 λ 목록과 z | (0, .25, .5, .75, 1.0), z = home z | 좌동 (**가설**) | A2 "home 유지, 위반 시 base 쪽 첫 안전 위치". 사전 실측에서 후보 0이 통과해 실제로 쓰일지 미정 |
-| D6 | 첫 접근과 Δz | a) home → `(x0,y0,z0+Δz)` 대각선 후 하강 b) home z에서 수평 이동 후 수직 하강 | **a**, Δz = 4 mm (**가설**, C-32) | b는 이동이 길다. 충돌 판정은 XY만이라 Validator 차이 없음 |
-| D7 | `compute_s` 범위 | a) `toolpath.generate`(캐시 없음) + chain + prevalidate + write b) 슬라이싱 포함 | **a**, 슬라이싱 시간은 `probe.json`에 따로 | `results.py` 정의: 배정·스케줄·timing·쓰기, Validator 제외. 슬라이싱 포함 여부는 정의되어 있지 않다(미확인) |
-| D8 | `algo` 문자열 | 예: `probe_v0_robot1_only` | 좌동 | 비교군으로 남을 이름 |
-| D9 | `seed` 열 | 빈칸 / 0 | 빈칸 | 무작위성이 없다 |
-| D10 | `commit` 열과 dirty 작업 트리 | a) HEAD만 b) dirty면 실행 거부 c) HEAD + notes에 dirty | **c** | 재현성 |
-| D11 | ratio 표시 | a) 우리 3대 하한으로 계산한 값을 그대로, notes에 "성능 아님" b) 빈칸 | **a** | 지시: "ratio(우리 계산값 표시)". 사전 추정 3.727은 1대 작업 값 |
-| D12 | `results.csv`에 없는 항목(§B 8개) | a) 스키마 유지, `probe.json`에 기록 b) 스키마 확장(C-17 변경) | **a** | 작업 지시: 스키마를 바꾸지 않는다. 확장은 사람 결정 |
-| D13 | 스윕(A1)의 실행 승인 | a) v0는 점 수만 정하고 실행은 별도 승인 b) 자동 실행 | **a** | C-29(기본값 밖 값 금지, C-24 전)와 C-31(스윕 격자 결정)의 관계를 사람이 확정해야 한다 |
-| D14 | 가설 검증 허용 오차와 불일치 처리 | 0.005 / 0.01 / 0.002; 불일치 시 보고만 / 중단 | 0.005 (**가설**), 보고만(종료 코드 4) | 근거 없음 |
-| D15 | 형상 FAIL 정의 | a) `shape.passed == false` b) 전체 IoU < 0.9만 | **a** | a가 IoU·coverage·overfill·실패 층을 모두 포함. 지시문은 IoU < 0.9를 예로 든다 |
-| D16 | 비교 수준 | a) toolpath 발자국만(P18) b) 쓴 CSV의 D 행으로 발자국 재구성도 | **a** | b는 timing·writer의 z→층 배정까지 독립 검증하나 구현이 더 든다 |
-| D17 | 스크립트 이름·위치 | `experiments/probe_06.py` / `experiments/probe.py --model 06` | `probe_06.py` | 모델 일반화는 run_all 설계(C-21) 때 |
-| D18 | 재시도 3회의 셈 | a) 재시도 3회(시도 4회) b) 총 시도 3회 | **a** | 지시: "최대 3회 자동 재시도" |
+| # | 결정 | 후보 | 기본값 후보 | 근거 / 비고 | 결정 (C-41) |
+|---|---|---|---|---|---|
+| D1 | 좌표 정밀도 요구 "1e-6 이상" | a) 시각만 1e-6 이상, 좌표는 float32 값 b) 지시대로 좌표 1e-6 | **a** | b는 불가능(P9). Validator 로더가 float32로 읽는다(확정) | a |
+| D2 | CSV·속도 오류의 "자동 재시도" 의미 | a) 새 run 폴더에서 같은 입력으로 1회 재생성, 재현되면 중단 b) 재시도 없이 즉시 중단 c) 로직을 바꿔 재시도(예: 후보 변경) | **a** | 입력이 같으면 결과가 같아 재시도로 바뀌는 것이 없다(결정적 코드). 충돌만 후보 변경으로 의미가 있다 | a |
+| D3 | Validator 타임아웃 `T_v` | 600 / 1800 / 3600 s | 1800 s (**가설**) | 06 wall 시간 **미측정**. 테스트는 600 s를 쓴 적이 있다(`test_stage1_end_to_end.py`) | 1800 s (가설) |
+| D4 | 주차 로봇의 마지막 시각 | a) `T_end`와 같게(W 하나) b) 짧은 W(예: 1.0 s)만 | **a** | 두 방식의 Validator 판정은 같다(끝난 로봇은 makespan까지 위치 유지). a는 stage-1 테스트와 같고 시간 합 검사가 단순 | a |
+| D5 | 주차 후보 λ 목록과 z | (0, .25, .5, .75, 1.0), z = home z | 좌동 (**가설**) | A2 "home 유지, 위반 시 base 쪽 첫 안전 위치". 사전 실측에서 후보 0이 통과해 실제로 쓰일지 미정 | 채택 (가설) |
+| D6 | 첫 접근과 Δz | a) home → `(x0,y0,z0+Δz)` 대각선 후 하강 b) home z에서 수평 이동 후 수직 하강 | **a**, Δz = 4 mm (**가설**, C-32) | b는 이동이 길다. 충돌 판정은 XY만이라 Validator 차이 없음 | a, Δz 4 mm (가설) |
+| D7 | `compute_s` 범위 | a) `toolpath.generate`(캐시 없음) + chain + prevalidate + write b) 슬라이싱 포함 | **a**, 슬라이싱 시간은 `probe.json`에 따로 | `results.py` 정의: 배정·스케줄·timing·쓰기, Validator 제외. 슬라이싱 포함 여부는 정의되어 있지 않다(미확인) | a |
+| D8 | `algo` 문자열 | 예: `probe_v0_robot1_only` | 좌동 | 비교군으로 남을 이름 | 채택 |
+| D9 | `seed` 열 | 빈칸 / 0 | 빈칸 | 무작위성이 없다 | 빈칸 |
+| D10 | `commit` 열과 dirty 작업 트리 | a) HEAD만 b) dirty면 실행 거부 c) HEAD + notes에 dirty | **c** | 재현성 | c |
+| D11 | ratio 표시 | a) 우리 3대 하한으로 계산한 값을 그대로, notes에 "성능 아님" b) 빈칸 | **a** | 지시: "ratio(우리 계산값 표시)". 사전 추정 3.727은 1대 작업 값 | a |
+| D12 | `results.csv`에 없는 항목(§B 8개) | a) 스키마 유지, `probe.json`에 기록 b) 스키마 확장(C-17 변경) | **a** | 작업 지시: 스키마를 바꾸지 않는다. 확장은 사람 결정 | a |
+| D13 | 스윕(A1)의 실행 승인 | a) v0는 점 수만 정하고 실행은 별도 승인 b) 자동 실행 | **a** | C-29(기본값 밖 값 금지, C-24 전)와 C-31(스윕 격자 결정)의 관계를 사람이 확정해야 한다 | a |
+| D14 | 가설 검증 허용 오차와 불일치 처리 | 0.005 / 0.01 / 0.002; 불일치 시 보고만 / 중단 | 0.005 (**가설**), 보고만(종료 코드 4) | 근거 없음 | 0.005 (가설), 보고만 |
+| D15 | 형상 FAIL 정의 | a) `shape.passed == false` b) 전체 IoU < 0.9만 | **a** | a가 IoU·coverage·overfill·실패 층을 모두 포함. 지시문은 IoU < 0.9를 예로 든다 | a |
+| D16 | 비교 수준 | a) toolpath 발자국만(P18) b) 쓴 CSV의 D 행으로 발자국 재구성도 | **a** | b는 timing·writer의 z→층 배정까지 독립 검증하나 구현이 더 든다 | a |
+| D17 | 스크립트 이름·위치 | `experiments/probe_06.py` / `experiments/probe.py --model 06` | `probe_06.py` | 모델 일반화는 run_all 설계(C-21) 때 | probe_06.py |
+| D18 | 재시도 3회의 셈 | a) 재시도 3회(시도 4회) b) 총 시도 3회 | **a** | 지시: "최대 3회 자동 재시도" | a |
 
 ## A. 재사용 후보 조사 (읽기)
 

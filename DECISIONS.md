@@ -280,6 +280,21 @@
 - 무응답 시: 해당 없음(결정됨)
 - 보고서 논거 (초안, 사람 확인): 합격 기준을 사전 가설값 대신 형상에서 유도한 식으로 다시 세웠고, 유도식과 실측(03 층별 t_min 7.992~, 중앙값 7.9955)을 분리해 기록했다. 근거: 폭 8 mm 비드는 두께 8 mm 미만 벽을 반드시 삐져나간다.
 
+### C-41 — probe_driver 명세 확정과 D1~D18 결정
+- 일시: 2026-10-11 (사람 결정, 작업 19) | 등급: B | 상태: **결정** | 근거 문서: `docs/specs/probe_driver.md` §10 (작업 18 초안 + 채팅 검토 반영)
+- 문제 정의: C-30의 "06에서 Validator PASS 1회"를 얻는 탐침 구동 스크립트의 명세 미결 18건(D1~D18).
+- 충족 조건: 구현이 명세만으로 가능하고, 근거 없는 값은 가설로 표시되며, 스윕 실행은 사람 결정 전 막힌다.
+- 선택지: 명세 §10 각 행의 후보 (기본값 후보 채택 여부)
+- 결정: **명세 §10의 기본값 후보를 모두 채택.**
+  - D1 시각 float64 1e-6 이상, 좌표는 float32 값 | D2 충돌만 다음 주차 후보로 재시도, CSV·속도 오류는 새 run 폴더 1회 재생성 후 재현되면 중단 | D3 타임아웃 1800 s (가설) | D4 주차 로봇 W 하나, 마지막 시각 = T_end | D5 λ (0, .25, .5, .75, 1.0), z = home z (가설) | D6 첫 접근 대각선 후 하강, Δz 4 mm (가설)
+  - D7 compute_s = generate(캐시 없음) + chain + prevalidate + write, 슬라이싱 제외, probe.json에 slicing_s·toolpath_s·chain_s 별도 | D8 algo = `probe_v0_robot1_only` | D9 seed 빈칸 | D10 commit = HEAD, dirty면 notes에 표시 | D11 ratio = 우리 3대 하한 기준, notes에 "ratio=ours, 3-robot lower bound, 1-robot probe"
+  - D12 results.py 스키마 유지, 빠진 8항목은 probe.json | D13 v0는 `a1_points`만 기록, 스윕 실행은 사람 결정 전 금지 (C-29·C-31 관계 미결) | D14 허용 오차 0.005 (가설), 불일치는 보고만 | D15 형상 FAIL = `shape.passed == false` | D16 비교는 toolpath 발자국 기준 | D17 `experiments/probe_06.py` | D18 재시도 3회(시도 최대 4회)
+  - 채팅 검토 반영: P16 모든 시도(PASS·FAIL)마다 results.csv 행(notes에 run id·시도 번호), P18·P22 PASS이나 불일치(코드 4)도 PASS로 기록, T-26 추가·T-20 개명·키 추가.
+- 되돌림 비용: 낮음 — 구현 전/탐침 코드뿐.
+- 결정 책임자: 사용자 | 데드라인: — | 영향 받는 자: experiments/probe_06.py, C-31 스윕 | 알아야 할 자: 팀
+- 무응답 시: 해당 없음(결정됨)
+- 보고서 논거 (초안, 사람 확인): 탐침의 모든 가설값(타임아웃·리프트·주차 후보·허용 오차)을 가설로 표시하고, 모든 Validator 시도를 결과표에 남기며 스윕 실행을 별도 승인으로 분리했다.
+
 ### C-07 — docs/experiments.md는 사람이 작성
 - 일시: 2026-10-10 13:32 | 등급: C | 결정: **그대로 유지** | 상태: 결정
 
