@@ -183,3 +183,4 @@
 - `geometry.reachable_mask`는 로봇 ID `(1, 2, 3)`을 하드코딩한다(`src/waam/geometry.py`). 로봇이 3대가 아닌 cell에서는 쓸 수 없다(toolpath는 이 때문에 `in_reach`를 로봇 수만큼 직접 호출한다). 수정은 안 함.
 - toolpath 캐시·`_Ctx`의 cell 로봇 수 상한 **8**에는 근거가 없다: 도달 집합을 1바이트 비트마스크로 저장하려는 구현상 편의일 뿐이다.
 - 현황 조사 표: `docs/measurements/status_survey_2026-10-11.md`, 길이 분해: `docs/measurements/toolpath_v0_length.md`. assign·schedule·precedence 모듈과 `experiments/run_all.py`·`results.csv`는 없음.
+| 2026-10-11 15:57 | 작업 18: 탐침 구동 스크립트 명세 초안 `docs/specs/probe_driver.md` 작성(미확정, 구현 없음). 사전 실측(.cache, 레포 코드 변경 없음): 06 로봇 1 chain 끝 시각 6174.84 s, home 주차 prevalidate ok. 사람 결정 18건은 명세 §10 |
