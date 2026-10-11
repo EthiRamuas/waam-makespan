@@ -1,12 +1,12 @@
 # PROGRESS.md
 
 ## 현재 상태 (체크포인트 갱신)
-- 단계: **2단계 종료 (2026-10-11 18:29).** 3단계(toolpath v0 → baseline_sector → run_all) 진행 중. toolpath v0는 병합됨(29aae2a, 작업 16).
+- 단계: **2단계 종료 (2026-10-11 18:29).** 3단계 진행 중. 순서는 C-45: baseline(S+P 포트폴리오, C-42) → run_all(C-21) → toolpath v0.1. toolpath v0는 병합됨(29aae2a, 작업 16).
 - 탐침: 모델 **06**(03에서 변경). run `20261011-181549-06-cf0205b` 1회: Validator exit 0, summary.json status **PASS**, makespan_s 6174.838943466003 (`docs/measurements/probe_06_run1.md`). 기록 오류: 실행 직전 로그 파일을 레포 루트에 만들어 results.csv notes·probe.json이 git_dirty=true로 기록됨.
 - 통과 테스트: **556 passed, skipped 없음, 141.64 s** (Claude 실측, 10-11 18:56~18:59, 작업 22, `python -m pytest -q`). 사용자 보고 556과 일치. 이전 Claude 실측은 523 passed (10-11 15:32, 작업 16).
 - 작업 19(probe_driver 명세 C-41 확정 17:52, `experiments/probe_06` 구현 18:03)·작업 20(예외 코드 수정 18:15, run 1 기록 18:16)은 아래 시간 기록 참조. 작업 21(3단계 설계 입력 측정, 읽기 전용)은 `.cache/waam/analysis3/`(미커밋)에 결과를 두고, 값은 `docs/measurements/design_inputs_3stage.md`에 보존(작업 22).
 - 막힌 곳: 없음. 결정 대기: C-06, C-15(데드라인: 4단계 첫머리), C-21(run_all 설계 때), C-24(coverage 활용), C-25(비공개 모델 메시 repair, 15주차 전), C-26 입력(부품 기준 배분 방침)
-- 다음 작업: baseline_sector → run_all (3단계). 중간평가 10/20.
+- 다음 작업: baseline 명세 초안(`docs/specs/baseline.md`, 미확정) 사람 검토·확정(R5: U-25·U-26·U-27) → 구현 → run_all. 중간평가 10/20.
 - 신호: 계속
 
 ## 시간 기록
@@ -203,6 +203,9 @@
 | 2026-10-11 18:59 | 작업 22: pytest 556 passed 141.64 s (18:56:38~18:59:01) |
 | 2026-10-11 19:10 | 작업 23 시작 (git status --short 비어 있음) |
 | 2026-10-11 19:12 | 작업 23: 세분 M1·M5 측정, 문서·PROGRESS 보정 |
+| 2026-10-11 19:29 | 작업 24 시작 (git status --short 비어 있음) |
+| 2026-10-11 19:58 | 작업 24: C-42~C-45, M6~M8 측정(M7 모델 05는 약 23분 소요), 커밋 e91206a |
+| 2026-10-11 19:58 | 작업 24: baseline 명세 초안 작성(작성 시각은 시계 읽기 근사), 두 번째 커밋 |
 
 ## 열린 항목 (작업 22, 2026-10-11)
 - results.csv 첫 행 notes의 `dirty`는 로그 파일을 레포 루트에 만든 실수 때문이다. results.csv는 추가 전용이라 그대로 둠.
@@ -210,3 +213,4 @@
 - 타임아웃 시 Windows에서 하위 프로세스가 남을 가능성이 있다(가설, 미측정).
 - 해소: Validator 최소 XY 마진 38.16 mm(=1500−1461.835, 중심선 꼭짓점 기준)와 C-26의 +33.9 mm(=1500−1466.081, 폴리곤 모서리 (63, ±95) 기준)는 기준 차이이며 산술이 일치한다(작업 23 numpy 계산, `design_inputs_3stage.md` 9절).
 - 06 M1(중심선 1대 45.5%)과 폴리곤(0%) 불일치: 선분 단위 집계 때문으로 확인(세분 재계산 1대 0%, 3대 94.4%). 01~05의 같은 효과는 미측정. 상세 `docs/measurements/design_inputs_3stage.md`.
+- 결정 대기에 C-21 유지(run_all 설계 때). baseline 명세 초안의 R5 항목은 U-25(2·4대 체인 일반화), U-26(S·P 각각 Validator 실행 여부), U-27(일을 끝낸 로봇의 종료 주차).
