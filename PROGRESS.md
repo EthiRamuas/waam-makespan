@@ -178,3 +178,8 @@
 ## 작업 16 (2026-10-11)
 | 15:32 | wip/toolpath-v0 소규모 수정(리뷰어 호출 없음, 채팅 리뷰 반영): ① 명세 V21 캐시 키 설명 정정 ② 캐시 복원·도달 계산의 로봇 수 3 고정 제거(1~8대, 초과 시 ValueError; 도달은 `in_reach`를 로봇 수만큼 호출) + 로봇 2·4대 캐시 적중 테스트 ③ 테스트 13·14는 Validator 데이터 없으면 skip(사유 명시) ④ medial 폴백 `warnings.warn(RuntimeWarning)` + 테스트. 전체 pytest 523 passed, skipped 0 (133.6 s), 수정 커밋 29aae2a |
 | 15:32 | wip/toolpath-v0 → session/2026-10-10 ff-only 병합 완료 (병합 시점 HEAD 75b8896). wip 브랜치 유지. 리뷰어: 이 단계에서 호출 안 함(사람의 채팅 리뷰 반영) |
+
+## 열린 항목 (작업 17, 2026-10-11)
+- `geometry.reachable_mask`는 로봇 ID `(1, 2, 3)`을 하드코딩한다(`src/waam/geometry.py`). 로봇이 3대가 아닌 cell에서는 쓸 수 없다(toolpath는 이 때문에 `in_reach`를 로봇 수만큼 직접 호출한다). 수정은 안 함.
+- toolpath 캐시·`_Ctx`의 cell 로봇 수 상한 **8**에는 근거가 없다: 도달 집합을 1바이트 비트마스크로 저장하려는 구현상 편의일 뿐이다.
+- 현황 조사 표: `docs/measurements/status_survey_2026-10-11.md`, 길이 분해: `docs/measurements/toolpath_v0_length.md`. assign·schedule·precedence 모듈과 `experiments/run_all.py`·`results.csv`는 없음.
