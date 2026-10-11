@@ -1,0 +1,2 @@
+model,algo,makespan_s,ratio,compute_s,passed,run_at,commit,seed,lower_bound_s,validator_status,validator_version,notes
+06,probe_v0_robot1_only,6174.838943466003,3.7275013429713657,0.4582402999512851,True,2026-10-11T18:15:53+09:00,cf0205b,,1656.5625,PASS,1.0.1,"ratio=ours, 3-robot lower bound, 1-robot probe; run=20261011-181549-06-cf0205b; a1; dirty"
